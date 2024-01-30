@@ -15,7 +15,37 @@ from ase.data import atomic_numbers
 
 
 class Spectral:
-    '''Class containing bands information from a CASTEP .bands file'''
+    """
+    The band information from a CASTEP .bands file.
+
+    The actual data is stored in a numpy array band_structure that has the following shape
+    band_structure[max_eig, no_kpoints, nspins]
+    where max_eig is the maximum number of eigenvalues (in spin polarised calculations, these may not match perfectly).
+
+    Attributes
+    -----------
+    seed : string
+         The seedname of the CASTEP run, e.g.  <seedname>.bands.
+    zero_fermi : boolean
+         Should the eigenvalues be shifted such that the Fermi energy is at the zero of energy (Default : True)
+    convert_to_eV : boolean
+         Convert eigenvalues from atomic units (Hartrees) to electronvolts
+    flip_spins : boolean
+         Swap the spin channels when making the plot (Default : True)
+
+    Methods
+    ----------
+    plot_bs
+         Plots the band structure from the .bands file
+    pdos_filter
+         Function for separating the partial density of states by species,ion and angular momentum.
+    plot_dos
+         Plots the density of states
+    kpt_where
+         Obtains the label of a given high-symmetry point from its coordinates.
+    get_band_info
+         Get a summary of information in the band structure.
+    """
 
     def __init__(self,
                  seed,
@@ -53,8 +83,8 @@ class Spectral:
         self.convert_to_eV = convert_to_eV
         self.seed = seed
         self.zero_fermi = zero_fermi
-        # First we try to open the file
 
+        # First we try to open the file
         # Open the bands file
         try:
             bands_file = seed+".bands"
