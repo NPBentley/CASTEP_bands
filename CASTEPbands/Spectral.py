@@ -1,16 +1,17 @@
-import warnings
-import numpy as np
-import sys
-import ase
-import ase.io as io
-import ase.dft.bz as bz
 import os
-import matplotlib.pyplot as plt
-from itertools import cycle
-from ase.data import atomic_numbers
-import matplotlib
+import sys
 import time
+import warnings
+from itertools import cycle
+
+import ase
+import ase.dft.bz as bz
+import ase.io as io
 import cycler
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from ase.data import atomic_numbers
 
 
 class Spectral:
@@ -518,9 +519,9 @@ class Spectral:
                 band_ids=None):
         ''' Function for plotting a Band structure, provide an ax object'''
         import matplotlib
+
         #cycle_color = plt.get_cmap(cmap).colors
         #plt.rcParams['axes.prop_cycle'] = cycler(color=cycle_color)
-
         # Set dedaults for spins
         if self.spin_polarised and spin_index is None:
             spin_index = [0,1]
@@ -642,11 +643,12 @@ class Spectral:
                             raise Exception("Highlighting by population analysis unavailable for non-mono plots.")
             #Now we do the horrid part of plotting the colors                
             else:
+                import matplotlib.collections as mcoll
+                import matplotlib.path as mpath
                 from matplotlib import colors
                 from matplotlib.colors import ListedColormap
                 from matplotlib.lines import Line2D
-                import matplotlib.collections as mcoll
-                import matplotlib.path as mpath
+
                 # Define the colours we'll use for the plotting
                 n_colors=cycle(['blue','red','green','black','purple','orange','yellow','cyan'])
                 
