@@ -90,7 +90,7 @@ class Spectral:
             bands_file = seed+".bands"
             bands = open(bands_file, 'r')
         except:
-            raise Exception("No .bands file")
+            raise FileNotFoundError("No .bands file")
 
         lines = bands.readlines()
 
@@ -112,6 +112,7 @@ class Spectral:
             max_eig = np.max([no_eigen, no_eigen_2])
             n_up = float(lines[2].split()[-2])
             n_down = float(lines[2].split()[-1])
+
         # Set all of the bands information
         self.spin_polarised = spin_polarised
         self.Ef = fermi_energy*eV
@@ -260,6 +261,157 @@ class Spectral:
         self.dk = np.sum((np.sum(kpoint_list, axis=0)/no_kpoints)**2)
         # We have all the info now we can break it up
         # warnings.filterwarnings('always')
+
+    def get_band_info(self, silent=False, bandwidth=None, band_order='F'):
+        """Get a summary of the band structure.
+
+        Author: V Ravindran (30/01/2024)
+
+        Parameters
+        ----------
+        silent : boolean
+            Do not print out information to standard output (Default: False)
+        bandwidth : integer
+            Obtain the band width for a specific band (see band_order)
+        band_order : string
+            Type of array ordering to use when deciding which band to use for band width
+            measurements. CASTEP uses Fortran ordering (arrays start from 1).
+            (default : 'F')
+
+        Returns
+        -------
+        dictionary
+            a dictionary containing the various properties of the band structure.
+
+        Raises
+        ------
+        NameError
+            Invalid band_order specified - Invalid value specified - must be either 'C' or 'F'
+
+        """
+
+        def _get_bandwidth(self, band, band_order):
+            """Helper function to get the width of a given band for each spin
+            Author: V Ravindran (30/01/2024)
+            """
+
+            # Decide on how the user wants to order the bands.
+            if band_order == 'F':
+                band = band - 1
+            elif band_order == 'C':
+                pass
+            else:
+                raise NameError("band_order be either 'C' or 'F'")
+
+            # Now get the width of the band for each spin.
+            width = np.empty(self.nspins)
+            for ns in range(self.nspins):
+                eigs = self.BandStructure[band, :, ns]
+                width[ns] = np.max(eigs) - np.min(eigs)
+            return width
+
+        if bandwidth is not None:
+            # If the user just wants the width of a specific band, just return that instead.
+            return _get_bandwidth(self, bandwidth, band_order)
+
+        # Get a summary of the band structure instead, start with the bits we already have in the class
+        band_info = {'nelec': None, 'nbands': None, 'nspins': self.nspins, 'nkpts': self.n_kpoints,
+                     'gap_indir': None, 'gap_dir': None, 'loc_indir': None, 'loc_dir': None,
+                     'fermi': self.Ef, 'vb_width': None, 'cb_width': None, 'eng_unit': None}
+
+        # Get the number of electrons and bands
+        nelecs = np.empty(self.nspins, dtype=int)
+        nbands = np.empty(self.nspins, dtype=int)
+        if (self.nspins == 2):
+            nelecs[0] = self.nup
+            nelecs[1] = self.ndown
+            nbands[0] = self.eig_up
+            nbands[1] = self.eig_down
+        else:
+            nelecs[0] = self.electrons
+            nbands[0] = self.eig_up
+
+        gap_in = np.empty(self.nspins)  # indirect gap
+        gap_dir = np.empty(self.nspins)  # direct gap
+        loc_in = np.empty((self.nspins, 2, 3))  # spin, VBM/CBM, coordinates
+        loc_dir = np.empty((self.nspins, 3))  # spin, coordinates
+        vb_width = np.empty(self.nspins)
+        cb_width = np.empty(self.nspins)
+
+        # Get gaps for each spin channel
+        for ns in range(self.nspins):
+            occ = 1
+            if (self.nspins == 1):
+                # If not spin polarised, then we are doubly occupying levels
+                occ = 2
+
+            vb_eigs = self.BandStructure[int(nelecs[ns]/occ) - 1, :, ns]
+            cb_eigs = self.BandStructure[int(nelecs[ns]/occ), :, ns]
+
+            # Determine valence band maximum and conduction band minimum to get direct gap
+            # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
+            vbm_i, cbm_i = np.argmax(vb_eigs), np.argmin(cb_eigs)
+            gap_in[ns] = cb_eigs[cbm_i] - vb_eigs[vbm_i]
+
+            # Determine locations of the valence band minimum and conduction band maximum
+            loc_in[ns, 0, :] = self.kpoint_list[vbm_i]
+            loc_in[ns, 1, :] = self.kpoint_list[cbm_i]
+
+            # Now do the direct gap
+            gap_dir[ns] = cb_eigs[vbm_i] - vb_eigs[vbm_i]
+            loc_dir[ns, :] = self.kpoint_list[vbm_i]
+
+            # Get the band widths
+            vb_width[ns] = np.max(vb_eigs) - np.min(vb_eigs)
+            cb_width[ns] = np.max(cb_eigs) - np.min(cb_eigs)
+
+        # Decide on the energy unit
+        eng_unit = 'Hartrees'
+        if self.convert_to_eV is True:
+            eng_unit = 'eV'
+        # Now put everything into band_info
+        band_info['nelec'] = nelecs
+        band_info['nbands'] = nbands
+        band_info['gap_indir'] = gap_in
+        band_info['loc_indir'] = loc_in
+        band_info['gap_dir'] = gap_dir
+        band_info['loc_dir'] = loc_dir
+        band_info['vb_width'] = vb_width
+        band_info['cb_width'] = cb_width
+        band_info['eng_unit'] = eng_unit
+
+        # Write out the data in a pretty format
+        # Really we should be using f-strings for this but on the off chance someone has an older version of Python...
+        if silent is False:
+            print('Number of spins:     ', self.nspins)
+            print('Number of k-points:  ', self.n_kpoints)
+            # print('Number of electrons: ', " ".join(nelecs))
+            # print('Number of bands:     ', " ".join(self.nbands))
+            print('Fermi Energy:        {:.6f} {}'.format(self.Ef, eng_unit))
+
+            # Print information for each spin channel
+            for ns in range(self.nspins):
+                if (self.nspins == 2):
+                    print('Spin Channel {}'.format(ns+1))
+                    print('-'*50)
+
+                print('No. of electrons: ', nelecs[ns])
+                print('No. of bands:     ', nbands[ns])
+                kx_vbm, ky_vbm, kz_vbm = loc_in[ns, 0, :]
+                kx_cbm, ky_cbm, kz_cbm = loc_in[ns, 1, :]
+                print('Indirect gap: {:.6f} {}  from {:.6f} {:.6f} {:.6f} --> {:.6f} {:.6f} {:.6f}'.format(
+                    gap_in[ns], eng_unit,
+                    kx_vbm, ky_vbm, kz_vbm,
+                    kx_cbm, ky_cbm, kz_cbm
+                ))
+                print('Direct gap:   {:.6f} {}  at   {:.6f} {:.6f} {:.6f}'.format(
+                    gap_dir[ns], eng_unit,
+                    kx_vbm, ky_vbm, kz_vbm,
+                ))
+
+                if (self.nspins == 2):
+                    print('')
+        return band_info
 
     def _pdos_read(self,
                    species_only=False,
