@@ -669,6 +669,68 @@ class Spectral:
                 pdos_species=False,
                 pdos_popn_select=[None, None],
                 band_ids=None):
+        """Plot the band structure from a .bands file.
+
+        Parameters
+        ----------
+        ax : matplotlib axes
+            The axis object to which the band structure should be added.
+            Multiple bandstructures can be plotted on top of each other by specifying the same axes.
+        mono : boolean
+            Make bandstructure a single colour (default : False)
+        mono_color : string
+            Colour to use if band structure is a single colour (default : black).
+        spin_polarised : boolean
+            Is .bands for a spin polarised calculation? (default: Set by bands data)
+        spin_up_color : string
+            colour to use for spin up channel (default : red)
+        spin_down_color : string
+            colour to use for spin down channel (default : blue)
+        spin_up_color_hi : string
+            mono colour for spin up channel (default : black)
+        spin_down_color_hi : string
+            mono colour for spin down channel (default : black)
+        pdos : boolean
+            Perform Mulliken projections to project out bands by the orbitals.
+        fontsize : integer
+            Fontsize to use in the plot
+        cmap : matplotlib colourmap
+            colour map to use in partial density of states.
+        show_fermi : boolean
+            Show the Fermi energy of the plot
+        fermi_line_style : string
+            matplotlib line style to use for the Fermi energy line
+        fermi_line_color : string
+            matplotlib colour to use for Fermi energy line
+        fermi_linewidth : float
+            line width to use for Fermi energy
+        linestyle : string
+            matplotlib line style to use when plotting the band structure.
+        linewidth : float
+            width of lines when plotting each band.
+        sym_lines : boolean
+            Show lines indicating high-symmetry points in the Brillouin zone.
+        spin_index : integer
+            Plot only a specific spin channel (NB: indices are specified in C/Python convention)
+        Elim : ndarray(dtype=float)
+            Limit of energy scale
+        axes_only : boolean
+            Return the formatted band structure axes (including high symmetry lines if requested)
+            but do not actually plot the band structure or density of states.
+        pdos_species : ndarray(dtype=int)
+            atoms (indexed from 0) to include in the partial density of states.
+        pdos_popn_select : ndarray
+            population analysis
+        band_ids : ndarray(dtype=int)
+            plot only specific bands in the band structure.
+
+        Raises
+        ------
+        Exception
+            Population analysis is unavailable in a monochromatic plot.
+
+        """
+
         ''' Function for plotting a Band structure, provide an ax object'''
         import matplotlib
 
