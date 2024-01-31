@@ -28,6 +28,12 @@ class Spectral:
          The seedname of the CASTEP run, e.g.  <seedname>.bands.
     zero_fermi : boolean
          Should the eigenvalues be shifted such that the Fermi energy is at the zero of energy (Default : True)
+    zero_vbm : boolean
+         Shift eigenvalues such that valence band maximum lies as zero of energy
+    zero_cbm : boolean
+         Same as zero_vbm but for conduction band
+    zero_shift : shift all eigenvalues DOWN by a constant value (in eV)
+         NB: To shift UPWARDS - a NEGATIVE shift must be specified.
     convert_to_eV : boolean
          Convert eigenvalues from atomic units (Hartrees) to electronvolts
     flip_spins : boolean
@@ -50,6 +56,9 @@ class Spectral:
     def __init__(self,
                  seed,
                  zero_fermi=True,
+                 zero_vbm=False,
+                 zero_cbm=False,
+                 zero_shift=None,
                  convert_to_eV=True,
                  flip_spins=False):
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
@@ -83,6 +92,8 @@ class Spectral:
         self.convert_to_eV = convert_to_eV
         self.seed = seed
         self.zero_fermi = zero_fermi
+        self.zero_vbm = zero_vbm
+        self.zero_cbm = zero_cbm
 
         # First we try to open the file
         # Open the bands file
@@ -96,7 +107,7 @@ class Spectral:
 
         no_spins = int(lines[1].split()[-1])
         no_kpoints = int(lines[0].split()[-1])
-        fermi_energy = float(lines[4].split()[-1])
+        fermi_energy = float(lines[4].split()[-1])  # TODO This only returns one of the Fermi energies (problem if open-shell system)
 
         if no_spins == 1:
             fermi_energy = float(lines[4].split()[-1])
@@ -116,6 +127,7 @@ class Spectral:
         # Set all of the bands information
         self.spin_polarised = spin_polarised
         self.Ef = fermi_energy*eV
+        # NB: Shifting of Fermi energy is done once we decide on energy shift for the eigenvalues later - V Ravindran 31/01/2024
         self.n_kpoints = no_kpoints
         if spin_polarised:
             self.nup = n_up
@@ -154,20 +166,51 @@ class Spectral:
             kpoint_list.append(vec)
 
         # fill up the arrays
-        if not zero_fermi:
-            fermi_energy = 0
-        else:
-            self.Ef = 0
-
         for k in range(0, no_kpoints):
             if no_spins == 1:
                 ind = 9+k*no_eigen+2*(k+1)
-                band_structure[:, k, 0] = eV*np.array([float(i)-fermi_energy for i in lines[ind:ind+no_eigen]])
+                band_structure[:, k, 0] = eV*np.array([float(i) for i in lines[ind:ind+no_eigen]])
 
             if no_spins == 2:
                 ind = 9+k*(no_eigen+no_eigen_2+1)+2*(k+1)
-                band_structure[:, k, 0] = eV*np.array([float(i)-fermi_energy for i in lines[ind:ind+no_eigen]])
-                band_structure[:, k, 1] = eV*np.array([float(i)-fermi_energy for i in lines[ind+no_eigen+1:ind+no_eigen+1+no_eigen_2]])
+                band_structure[:, k, 0] = eV*np.array([float(i) for i in lines[ind:ind+no_eigen]])
+                band_structure[:, k, 1] = eV*np.array([float(i) for i in lines[ind+no_eigen+1:ind+no_eigen+1+no_eigen_2]])
+
+        # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
+        # NB: For zero_cbm and zero_vbm, we take the VBM/CBM from the first spin channel if spin polarised (arbitrarily).
+        if no_spins == 1:
+            vb_eigs = band_structure[int(no_electrons/2)-1, :, 0]
+            cb_eigs = band_structure[int(no_electrons/2), :, 0]
+        else:
+            vb_eigs = band_structure[n_up-1, :, 0]
+            cb_eigs = band_structure[n_up, :, 0]
+
+        # The error handling for this is a bit of a pain in the arse for this one...
+        # In order of preference(highest to lowest): zero_vbm,zero_shift,zero_cbm,zero_fermi (since it's default)
+        if zero_vbm is True:
+            eng_shift = np.amax(vb_eigs)
+        elif zero_cbm is True:
+            eng_shift = np.amin(cb_eigs)
+        elif zero_shift is not None:
+            eng_shift = float(zero_shift)
+            if convert_to_eV is False:
+                # NB: User specifies shift in eV so convert to Hartrees.
+                eng_shift = eng_shift/eV
+        elif zero_fermi is True:
+            # Since this is a default, to minimise number of kwargs user has to use in class,
+            # this needs to be far down as possible
+            eng_shift = fermi_energy*eV
+        else:
+            eng_shift = 0.0
+
+        # Now perform the shift for real
+        for k in range(no_kpoints):
+            for ns in range(no_spins):
+                band_structure[:, k, ns] = band_structure[:, k, ns] - eng_shift
+
+        # Don't forget to shift the Fermi energy as well V Ravindran 31/01/2024
+        self.Ef = self.Ef - eng_shift
+
         sort_array = kpoint_array.argsort()
         kpoint_array = kpoint_array[sort_array]
         kpoint_list = np.array(kpoint_list)[sort_array]
@@ -262,7 +305,63 @@ class Spectral:
         # We have all the info now we can break it up
         # warnings.filterwarnings('always')
 
-    def get_band_info(self, silent=False, bandwidth=None, band_order='F'):
+    def shift_bands(self, eng_shift, use_eng_unit=None):
+        """Shift all eigenvalues DOWNWARDS by a constant.
+        To shift the eigenvalues up, a negative shift must be specified.
+
+        Author: V Ravindran (26/02/2024)
+
+        Parameters
+        ----------
+        eng_shift : float
+            shift to apply to eigenvalues.
+            The energy units by default will be set to the same units as the bands data.
+        use_eng_unit : str
+            override the energy units to use when specifying the energy shift.
+            Acceptable values are either 'hartrees' or 'ev'  (case-insensitive).
+
+        Raises
+        ------
+        ValueError
+            Invalid energy units specifed for use_eng_unit, must be either 'hartrees' or 'ev'.
+        """
+
+        eV = 27.2114
+        # print('Band structure is in units of eV?: ', self.convert_to_eV)
+        # Decide what energy units the bands are in
+        band_units = 'hartrees'
+        if self.convert_to_eV is True:
+            band_units = 'ev'
+        # Assume the same energy units for the user unless overriden
+        shift_units = band_units
+        if use_eng_unit is not None:
+            shift_units = use_eng_unit.strip().lower()
+        if shift_units not in ('hartrees', 'ev'):
+            raise ValueError('Invalid unit specified for energy shift. Must be "hartrees" or "ev" (case-insensitive)')
+
+        # If the user's energy shift and band data are not the same (what a weirdo),
+        # then convert the energy shift to match the energy units of the bands.
+        if shift_units != band_units:
+            if shift_units == 'hartrees' and band_units == 'ev':
+                eng_shift *= eV
+            elif shift_units == 'ev' and band_units == 'hartrees':
+                eng_shift /= eV
+
+        # print(f'Energy units and shift {band_units=}, {shift_units=}, {eng_shift=}')
+        # print(f'{self.nbands=}, {self.n_kpoints=}, {self.nspins=}')
+        # print(f'{self.BandStructure.shape=}')
+
+        # Now shift the eigenvalues...
+        for ns in range(self.nspins):
+            for nk in range(self.n_kpoints):
+                self.BandStructure[:, nk, ns] = self.BandStructure[:, nk, ns] - eng_shift
+
+        # ... and the Fermi energy
+        self.Ef -= eng_shift
+
+        return
+
+    def get_band_info(self, silent=False, bandwidth=None, band_order='F', ret_vbm_cbm_i=False):
         """Get a summary of the band structure.
 
         Author: V Ravindran (30/01/2024)
@@ -277,6 +376,8 @@ class Spectral:
             Type of array ordering to use when deciding which band to use for band width
             measurements. CASTEP uses Fortran ordering (arrays start from 1).
             (default : 'F')
+        ret_vbm_cbm_i : boolean
+            Return the index of the kpoint required to get the valence band maximum and conduction band minimum.
 
         Returns
         -------
@@ -331,6 +432,8 @@ class Spectral:
             nelecs[0] = self.electrons
             nbands[0] = self.eig_up
 
+        vbm_i = np.empty(self.nspins, dtype=int)  # valence band maximum
+        cbm_i = np.empty(self.nspins, dtype=int)  # conduction band minimum
         gap_in = np.empty(self.nspins)  # indirect gap
         gap_dir = np.empty(self.nspins)  # direct gap
         loc_in = np.empty((self.nspins, 2, 3))  # spin, VBM/CBM, coordinates
@@ -350,20 +453,24 @@ class Spectral:
 
             # Determine valence band maximum and conduction band minimum to get direct gap
             # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
-            vbm_i, cbm_i = np.argmax(vb_eigs), np.argmin(cb_eigs)
-            gap_in[ns] = cb_eigs[cbm_i] - vb_eigs[vbm_i]
+            vbm_i[ns], cbm_i[ns] = np.argmax(vb_eigs), np.argmin(cb_eigs)
+            gap_in[ns] = cb_eigs[cbm_i[ns]] - vb_eigs[vbm_i[ns]]
 
             # Determine locations of the valence band minimum and conduction band maximum
-            loc_in[ns, 0, :] = self.kpoint_list[vbm_i]
-            loc_in[ns, 1, :] = self.kpoint_list[cbm_i]
+            loc_in[ns, 0, :] = self.kpoint_list[vbm_i[ns]]
+            loc_in[ns, 1, :] = self.kpoint_list[cbm_i[ns]]
 
             # Now do the direct gap
-            gap_dir[ns] = cb_eigs[vbm_i] - vb_eigs[vbm_i]
-            loc_dir[ns, :] = self.kpoint_list[vbm_i]
+            gap_dir[ns] = cb_eigs[vbm_i[ns]] - vb_eigs[vbm_i[ns]]
+            loc_dir[ns, :] = self.kpoint_list[vbm_i[ns]]
 
             # Get the band widths
             vb_width[ns] = np.max(vb_eigs) - np.min(vb_eigs)
             cb_width[ns] = np.max(cb_eigs) - np.min(cb_eigs)
+
+        # At this point, decide if we just want to know where the VBM and CBM are
+        if ret_vbm_cbm_i is True:
+            return vbm_i, cbm_i
 
         # Decide on the energy unit
         eng_unit = 'Hartrees'
@@ -385,8 +492,6 @@ class Spectral:
         if silent is False:
             print('Number of spins:     ', self.nspins)
             print('Number of k-points:  ', self.n_kpoints)
-            # print('Number of electrons: ', " ".join(nelecs))
-            # print('Number of bands:     ', " ".join(self.nbands))
             print('Fermi Energy:        {:.6f} {}'.format(self.Ef, eng_unit))
 
             # Print information for each spin channel
@@ -665,10 +770,15 @@ class Spectral:
                 sym_lines=True,
                 spin_index=None,
                 Elim=None,
+                klim=None,
                 axes_only=False,
                 pdos_species=False,
                 pdos_popn_select=[None, None],
-                band_ids=None):
+                band_ids=None,
+                mark_gap=False,
+                mark_gap_color=None,
+                mark_gap_headwidth=None,
+                mark_gap_linewidth=None):
         """Plot the band structure from a .bands file.
 
         Parameters
@@ -713,7 +823,10 @@ class Spectral:
         spin_index : integer
             Plot only a specific spin channel (NB: indices are specified in C/Python convention)
         Elim : ndarray(dtype=float)
-            Limit of energy scale
+            Limit of energy scale (in units of plot)
+        klim : list(dtype=str) or list(dtype=float) - see below
+            Limit of k-point axes.
+            This can be specified in by either the high-symmetry point labels (string) or kpoint index (integer)
         axes_only : boolean
             Return the formatted band structure axes (including high symmetry lines if requested)
             but do not actually plot the band structure or density of states.
@@ -723,6 +836,14 @@ class Spectral:
             population analysis
         band_ids : ndarray(dtype=int)
             plot only specific bands in the band structure.
+        mark_gap : boolean
+            mark the band gap on the plot
+        mark_gap_color : string or list(dtype=string)
+            colours to use when marking the band gap (list to specify for each spin channel)
+        mark_gap_headwidth : float or list(dtype=float)
+            width of arrow head used to mark the gap. (list to specify for each spin channel)
+        mark_gap_linewidth : float or list(dtype=float)
+            width of arrow tail used to mark the gap. (list to specify for each spin channel)
 
         Raises
         ------
@@ -769,15 +890,18 @@ class Spectral:
                             band_ids_mask[nb, ns] = False
 
         # Set the boring stuff
-
-        if self.convert_to_eV and self.zero_fermi:
-            ax.set_ylabel(r"E-E$_{\mathrm{F}}$ (eV)", fontsize=fontsize)
-        elif not self.convert_to_eV and self.zero_fermi:
-            ax.set_ylabel(r"E-E$_{\mathrm{F}}$ (Ha)", fontsize=fontsize)
-        elif not self.convert_to_eV and not self.zero_fermi:
-            ax.set_ylabel(r"E (Ha)", fontsize=fontsize)
-        elif self.convert_to_eV and not self.zero_fermi:
-            ax.set_ylabel(r"E (eV)", fontsize=fontsize)
+        # V Ravindran 26/02/2024 - tidied up if statement for the y-axis  label
+        eng_unit = 'Ha'
+        if self.convert_to_eV is True:
+            eng_unit = 'eV'
+        eng_label = 'E'
+        if self.zero_fermi is True:
+            eng_label = r'E-E$_{\mathrm{F}}$'
+        elif self.zero_vbm is True:
+            eng_label = r'E-E$_{\mathrm{VBM}}$'
+        elif self.zero_cbm is True:
+            eng_label = r'E-E$_{\mathrm{CBM}}$'
+        ax.set_ylabel(eng_label+f' ({eng_unit})', fontsize=fontsize)
 
         ax.set_xlim(1, len(self.kpoints))
         ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize*0.8, length=12, width=1.2)
@@ -789,9 +913,59 @@ class Spectral:
         ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(2))
         ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(2))
 
+        def _get_klim(self, user_klim):
+            """Helper function to parse the user's kpoint limits
+            Author : V Ravindran 01/04/2024
+            """
+            if len(user_klim) != 2:
+                raise IndexError('You must pass both the lower and upper kpoint limit')
+
+            plot_klim = np.empty(2, dtype=int)
+
+            if isinstance(user_klim[0], str) is True:
+                # Using high-symmetry points to decide label
+                for n, label in enumerate(user_klim):
+                    if label.strip() == 'G':
+                        label = '$\Gamma$'
+                    indx = [i for i, pt in enumerate(self.high_sym_labels) if label == pt]
+
+                    if len(indx) > 1:
+                        # If a high symmetry point appears more than once, let the user choose interactively.
+                        print('{} point appears more than once in band structure.'.format(label))
+                        print('Path in calculation: ', end='')
+                        for i, pt in enumerate(self.high_sym_labels):
+                            if pt == '$\Gamma$':
+                                pt = 'G'
+                            if i == len(self.high_sym_labels)-1:
+                                print(pt)
+                            else:
+                                print(pt, end='->')
+
+                        print('Choose index from the following: ', end=' ')
+                        for i, label_i in enumerate((indx)):
+                            print('{}: {}.kpt'.format(i, label_i+1), end='   ')
+                        indx = input('')
+                        indx = int(indx)
+                    elif len(indx) == 0:
+                        raise IndexError('{} not in high symmetry points'.format(label))
+                    else:
+                        indx = indx[0]
+
+                    # Now get the actual kpoint index associated with the desired high-symmetry point.
+                    plot_klim[n] = self.high_sym[indx]
+            else:
+                # Set index by kpoint number - NB: C/Python ordering!
+                plot_klim = np.array(user_klim, dtype=int)
+            return plot_klim
+
         # energy lims
         if Elim is not None:
             ax.set_ylim(Elim[0], Elim[1])
+
+        # kpoint/Brillouin zone limits V Ravindran - 01/02/2024
+        if klim is not None:
+            plot_klim = _get_klim(self, klim)
+            ax.set_xlim(plot_klim[0], plot_klim[1])
 
         # Add in all the lines
         if show_fermi:
@@ -938,6 +1112,72 @@ class Spectral:
                         labels = ["s", "p", "d", "f"]
 
                 ax.legend(custom_lines, labels, fontsize=fontsize)
+
+        # Mark the band gap on the plot V Ravindran 31/04/2024
+        if mark_gap is True:
+            vbm_i, cbm_i = self.get_band_info(ret_vbm_cbm_i=True)
+            # Decide on occupancies for each band depending on spin polarised or not
+            if self.spin_polarised is True:
+                nelec = np.array([self.nup, self.ndown], dtype=int)
+                occ = 1
+            else:
+                nelec = np.array([self.electrons], dtype=int)
+                occ = 2
+
+            # Now decide on aesthetics
+            if mark_gap_color is not None:
+                if isinstance(mark_gap_color, list):
+                    if len(mark_gap_color) != len(spin_index):
+                        raise IndexError('You need to provide a colour for each spin channel')
+                elif isinstance(mark_gap_color, str):
+                    col = mark_gap_color
+                    mark_gap_color = [col, col]
+                else:
+                    raise TypeError('mark_gap_color not string or list.')
+            else:
+                mark_gap_color = ['red', 'blue']
+
+            if mark_gap_headwidth is not None:
+                if isinstance(mark_gap_headwidth, list):
+                    if len(mark_gap_headwidth) != len(spin_index):
+                        raise IndexError('You need to provide a headwidth for each spin channel')
+                elif isinstance(mark_gap_headwidth, float):
+                    arrw = mark_gap_headwidth
+                    mark_gap_headwidth = [arrw, arrw]
+                else:
+                    raise TypeError('mark_gap_headwidth not a float or list.')
+            else:
+                mark_gap_headwidth = [0.75, 0.75]
+
+            if mark_gap_linewidth is not None:
+                if isinstance(mark_gap_linewidth, list):
+                    if len(mark_gap_linewidth) != len(spin_index):
+                        raise IndexError('You need to provide a linewidth for each spin channel')
+                elif isinstance(mark_gap_linewidth, float):
+                    lw = mark_gap_linewidth
+                    mark_gap_linewidth = [lw, lw]
+                else:
+                    raise TypeError('mark_gap_linewidth not a string or list.')
+            else:
+                mark_gap_linewidth = [0.15, 0.15]
+
+            # Finally, mark the gaps
+            for ns in spin_index:
+                vb_eigs = self.BandStructure[int(nelec[ns]/occ)-1, :, ns]
+                cb_eigs = self.BandStructure[int(nelec[ns]/occ), :, ns]
+
+                vbm_k, vbm_eng = self.kpoints[vbm_i[ns]], vb_eigs[vbm_i[ns]]
+                cbm_k, cbm_eng = self.kpoints[cbm_i[ns]], cb_eigs[cbm_i[ns]]
+                ax.scatter(vbm_k, vbm_eng, color=mark_gap_color[ns])
+                ax.scatter(cbm_k, cbm_eng, color=mark_gap_color[ns])
+                ax.arrow(vbm_k, vbm_eng, cbm_k-vbm_k, cbm_eng-vbm_eng,
+                         width=mark_gap_linewidth[ns],
+                         head_width=mark_gap_headwidth[ns],
+                         color=mark_gap_color[ns],
+                         length_includes_head=True,
+                         zorder=50000  # HACK Set this really high and hope this lies on top of everything.
+                         )
+
         return
 
     def pdos_filter(self, species, l, ion=None):
@@ -1056,14 +1296,18 @@ class Spectral:
         # Set the boring stuff
         if swap_axes:
 
-            if self.convert_to_eV and self.zero_fermi:
-                ax.set_ylabel(r"E-E$_{\mathrm{F}}$ (eV)", fontsize=fontsize)
-            elif not self.convert_to_eV and self.zero_fermi:
-                ax.set_ylabel(r"E-E$_{\mathrm{F}}$ (Ha)", fontsize=fontsize)
-            elif not self.convert_to_eV and not self.zero_fermi:
-                ax.set_ylabel(r"E (Ha)", fontsize=fontsize)
-            elif self.convert_to_eV and not self.zero_fermi:
-                ax.set_ylabel(r"E (eV)", fontsize=fontsize)
+            # V Ravindran 26/02/2024 - tidied up if statement for the y-axis label
+            eng_unit = 'Ha'
+            if self.convert_to_eV is True:
+                eng_unit = 'eV'
+            eng_label = 'E'
+            if self.zero_fermi is True:
+                eng_label = r'E-E$_{\mathrm{F}}$'
+            elif self.zero_vbm is True:
+                eng_label = r'E-E$_{\mathrm{VBM}}$'
+            elif self.zero_cbm is True:
+                eng_label = r'E-E$_{\mathrm{CBM}}$'
+            ax.set_ylabel(eng_label+f' ({eng_unit})', fontsize=fontsize)
 
             ax.tick_params(axis='both', which='major', labelsize=fontsize*0.8, length=12, width=1.2)
             ax.tick_params(axis='both', which='minor', labelsize=fontsize*0.8, length=6,
