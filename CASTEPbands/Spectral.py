@@ -250,8 +250,8 @@ class Spectral:
         ''' Internal function for reading the pdos_bin file. This contains all of the projected DOS from the Mulliken '''
         #NPBentley: added species_and_orb, allowing for colour plotting by both species and orbital. 18/01/24
 
-        #NPBentley: added the orb_breakdown function - this may break the dos plotting but haven't checked, as I usually
-        #make use of optados for dos plotting.
+        #NPBentley: added the orb_breakdown function, with the aim of splitting the orbitals up into suborbitals.
+        # This is not currently fully implemented or tested. 26/02/24
 
         from scipy.io import FortranFile as FF
     
@@ -286,6 +286,7 @@ class Spectral:
         pdos_orb_spec=np.zeros((num_species,4,max_eigenvalues,num_kpoints,num_spins))
 
         #NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
+        # 4 corresponds to the
         if orb_breakdown:
             pdos_suborb_spec=np.zeros((num_species,4,7,max_eigenvalues,num_kpoints,num_spins))
 
@@ -324,56 +325,6 @@ class Spectral:
             spec_ind=orbital_species[i]-1
        
             pdos_orb_spec[spec_ind,l_ind,:,:,:]=pdos_orb_spec[spec_ind,l_ind,:,:,:] + pdos_weights[i,:,:,:]
-
-
-        # NPBentley - Code used for subdividing the orbitals up into their suborbitals in the pdos calculation.
-        if orb_breakdown:
-
-            try:
-
-                castep_file = self.seed + ".castep"
-                castepfile = open(castep_file, 'r')
-            except:
-                raise Exception("No .castep file")
-
-            castep_lines = castepfile.readlines()
-            for line in castep_lines:
-                if line.find("Orbital Populations") != -1:
-                    orb_pop_index = castep_lines.index(line)
-
-            #print(orb_pop_index)
-            orb_info = castep_lines[orb_pop_index+4:orb_pop_index+4+len(orbital_species)]
-
-            orb_mapping = {
-                    "S" : 0,
-                    "Px" : 0,
-                    "Py" : 1,
-                    "Pz" : 2,
-                    "Dzz": 0,
-                    "Dzy": 1,
-                    "Dzx": 2,
-                    "Dxx-yy": 3,
-                    "Dxy": 4,
-                    "Fxxx": 0,
-                    "Fyyy": 1,
-                    "Fzzz": 2,
-                    "Fxyz": 3,
-                    "Fz(xx-yy)": 4,
-                    "Fy(zz-xx)": 5,
-                    "Fx(yy-zz)": 6
-            }
-            for i in range(len(orbital_species)):
-                orb_lab = orb_info[i].split()[2]
-                #print(orb_mapping.get(orb_lab))
-                l_ind = orbital_l[i]
-                spec_ind = orbital_species[i] - 1
-
-                pdos_suborb_spec[spec_ind,l_ind,orb_mapping.get(orb_lab),:,:,:]=pdos_suborb_spec[spec_ind,l_ind,orb_mapping.get(orb_lab),:,:,:] + pdos_weights[i,:,:,:]
-
-        #print(orbital_ion)
-        #print(orbital_species)
-        #print(orbital_l)
-
 
         # Go through each kpoint, band and spin to find the species and orbital with highest occupancy.
         # Then we can set it to 1 and all other weights to 0 in order to find the mode,
@@ -458,6 +409,54 @@ class Spectral:
         pdos_weights_sum=np.where(pdos_weights_sum>1,1,pdos_weights_sum)
         pdos_weights_sum=np.where(pdos_weights_sum<0,0,pdos_weights_sum)
         self.pdos=np.round(pdos_weights_sum,7)
+
+        # NPBentley - Code used for subdividing the orbitals up into their suborbitals in the pdos calculation.  TO DO - complete
+        if orb_breakdown:
+            suborb_list = []
+            try:
+
+                castep_file = self.seed + ".castep"
+                castepfile = open(castep_file, 'r')
+            except:
+                raise Exception("No .castep file")
+
+            castep_lines = castepfile.readlines()
+            for line in castep_lines:
+                if line.find("Orbital Populations") != -1:
+                    orb_pop_index = castep_lines.index(line)
+
+            #print(orb_pop_index)
+            orb_info = castep_lines[orb_pop_index+4:orb_pop_index+4+len(orbital_species)]
+            orb_mapping = {
+                    "S" : 0,
+                    "Px" : 0,
+                    "Py" : 1,
+                    "Pz" : 2,
+                    "Dzz": 0,
+                    "Dzy": 1,
+                    "Dzx": 2,
+                    "Dxx-yy": 3,
+                    "Dxy": 4,
+                    "Fxxx": 0,
+                    "Fyyy": 1,
+                    "Fzzz": 2,
+                    "Fxyz": 3,
+                    "Fz(xx-yy)": 4,
+                    "Fy(zz-xx)": 5,
+                    "Fx(yy-zz)": 6
+            }
+            for i in range(len(orbital_species)):
+                orb_lab = orb_info[i].split()[2]
+                suborb_list.append(orb_lab)
+                #print(orb_mapping.get(orb_lab))
+                l_ind = orbital_l[i]
+                spec_ind = orbital_species[i] - 1
+
+                pdos_suborb_spec[spec_ind,l_ind,orb_mapping.get(orb_lab),:,:,:]=pdos_suborb_spec[spec_ind,l_ind,orb_mapping.get(orb_lab),:,:,:] \
+                                                                                + self.raw_pdos[i,:,:,:]
+            #NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array
+            #as has been done when the species_and_orb option is used. It would also be useful to integrate this in with the dos plotting, as it
+            #likely be more useful to plot suborbitals in dos plots rather than in bands. 26/02/24
 
 
     def _gradient_read(self):
@@ -580,6 +579,74 @@ class Spectral:
         
         return labels
 
+    def _plot_gle(self,spin_polarised=False,spin_index=[0],species_and_orb=False):
+        '''Function for getting data into a GLE readable format and producing the template for a gle input file so that it can be used to produce
+        band structures.
+        :param: spin_index: Indicates spin component desired for plotting.
+        '''
+
+        ns_gle = 0
+        if spin_polarised:
+            if spin_index[0] == 0:
+                filename = "spin_up"
+                gle_color = "red"
+                ns_gle = spin_index[0]
+            else:
+                filename = "spin_down"
+                gle_color = "blue"
+                ns_gle = spin_index[0]
+                print(ns_gle)
+        else:
+            filename = "gle_bands"
+            gle_color = "black"
+
+        if species_and_orb:
+            filename = filename + "_specorb"
+
+        gle_data = np.zeros((len(self.kpoints), self.nbands + 1))
+        gle_data[:, 0] = self.kpoints
+        gle_data[:, 1:] = np.swapaxes(self.BandStructure[:self.nbands, :, ns_gle], 0, 1)
+        np.savetxt(filename+".dat", gle_data)
+
+        gle_graph = open(filename + ".gle", "w")
+        gle_graph.write('size 10 6')
+        # include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
+        gle_graph.write('\ninclude "graphutil.gle"')
+        gle_graph.write('\nset font texcmr')
+        gle_graph.write('\n\nf_e = 0')
+        gle_graph.write('\n\nsub graph_Fermi')
+        gle_graph.write('\n   set lstyle 3 just lc')
+        gle_graph.write('\n   graph_hline f_e')
+        gle_graph.write('\nend sub')
+        gle_graph.write('\n\nsub graph_vline x y1 y2')
+        gle_graph.write('\n   default y1 ygmin')
+        gle_graph.write('\n   default y2 ygmax')
+        gle_graph.write('\n   amove xg(x) yg(y1)')
+        gle_graph.write('\n   aline xg(x) yg(y2)')
+        gle_graph.write('\nend sub')
+        gle_graph.write('\n\nbegin graph\n')
+        gle_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
+        gle_graph.write('\n   xaxis max ' + str(len(self.kpoints)))
+        gle_graph.write('\n   xlabels off')
+        gle_graph.write('\n   xticks off')
+        gle_graph.write('\n   yaxis nticks 5 min -2 max 2')
+        gle_graph.write('\n   ysubticks off')
+        gle_graph.write('\n   data "'+filename+'.dat"')
+        if not species_and_orb:
+            gle_graph.write('\n   for alpha = 1 to ' + str(self.nbands))
+            gle_graph.write('\n      d[alpha] line color ' + gle_color)
+            gle_graph.write('\n   next alpha')
+        else:
+            for i in range(self.nbands):
+                gle_graph.write(
+                    '\n   d' + str(i) + ' line color spec'
+                    + str(int(self.band_char[0, i, 0])) + '_orb'
+                    + str(int(self.band_char[1, i, 0])))
+        gle_graph.write('\n   draw graph_Fermi')
+        gle_graph.write('\nend graph')
+        gle_graph.close()
+
+
     def plot_bs(self,
                 ax,
                 mono=False,
@@ -604,7 +671,7 @@ class Spectral:
                 axes_only=False,
                 pdos_species=False,
                 pdos_popn_select=[None,None],
-                output_data_files=False,
+                output_gle=False,
                 band_ids=None,
                 species_and_orb=False,
                 orb_breakdown=False):
@@ -613,7 +680,6 @@ class Spectral:
         #cycle_color = plt.get_cmap(cmap).colors
         #plt.rcParams['axes.prop_cycle'] = cycler(color=cycle_color)
 
-        #print(self.nbands)
 
         # Set defaults for spins
         if self.spin_polarised and spin_index is None:
@@ -695,7 +761,8 @@ class Spectral:
         if axes_only:
             return
 
-        
+        #self.spin_polarised=False
+
         # Do the standard plotting, no pdos here
         if not pdos:
         # Here we plot all of the bands. We can provide a mechanism latter for plotting invididual ones
@@ -709,137 +776,18 @@ class Spectral:
                     if mono:
                         ax.plot(self.kpoints,self.BandStructure[nb,:,ns],linestyle=linestyle,linewidth=linewidth,color=mono_color)
 
+
                     elif spin_polarised:
                         ax.plot(self.kpoints,self.BandStructure[nb,:,ns],linestyle=linestyle,linewidth=linewidth,color=spin_colors[ns])
-                        
                                                
                     else:
                         ax.plot(self.kpoints,self.BandStructure[nb,:,ns],linestyle=linestyle,linewidth=linewidth)
-                        
-            # NPBentley corrections so that data is outputed in a gle readable format.
-            
-            if output_data_files:
-                #Produce the required data files
-                if spin_polarised:
 
-                    gle_up_data = np.zeros((len(self.kpoints),self.nbands+1))
-                    gle_down_data = np.zeros((len(self.kpoints),self.nbands+1))
-                    gle_up_data[:,0] = self.kpoints
-                    gle_down_data[:,0] = self.kpoints
-                    gle_up_data[:,1:] = np.swapaxes(self.BandStructure[:self.nbands,:,0],0,1)
-                    gle_down_data[:,1:] = np.swapaxes(self.BandStructure[:self.nbands,:,1],0,1)
-                    np.savetxt("spin_up.dat",gle_up_data)
-                    np.savetxt("spin_down.dat",gle_down_data)
-                    #print(self.nbands)
-                    #print(len(self.kpoints))
-                
-                    #Produce a .gle template, this can then be altered by the user as they see fit
+            if output_gle:
+                self._plot_gle(spin_polarised,spin_index)
 
-                    gle_up_graph = open("spin_up" + ".gle", "w")
-                    gle_up_graph.write('size 10 6')
-                    #include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
-                    gle_up_graph.write('\ninclude "graphutil.gle"')
-                    gle_up_graph.write('\nset font texcmr')
-                    gle_up_graph.write('\n\nf_e = 0')
-                    gle_up_graph.write('\n\nsub graph_Fermi')
-                    gle_up_graph.write('\n   set lstyle 3 just lc')
-                    gle_up_graph.write('\n   graph_hline f_e')
-                    gle_up_graph.write('\nend sub')
-                    gle_up_graph.write('\n\nsub graph_vline x y1 y2')
-                    gle_up_graph.write('\n   default y1 ygmin')
-                    gle_up_graph.write('\n   default y2 ygmax')
-                    gle_up_graph.write('\n   amove xg(x) yg(y1)')
-                    gle_up_graph.write('\n   aline xg(x) yg(y2)')
-                    gle_up_graph.write('\nend sub')
-                    gle_up_graph.write('\n\nbegin graph\n')
-                    gle_up_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                    gle_up_graph.write('\n   xaxis max '+str(len(self.kpoints)))
-                    gle_up_graph.write('\n   xlabels off')
-                    gle_up_graph.write('\n   xticks off')
-                    gle_up_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                    gle_up_graph.write('\n   ysubticks off')
-                    gle_up_graph.write('\n   data "spin_up.dat"')
-                    gle_up_graph.write('\n   for alpha = 1 to '+str(self.nbands))
-                    gle_up_graph.write('\n      d[alpha] line color red')
-                    gle_up_graph.write('\n   next alpha')
-                    gle_up_graph.write('\n   draw graph_Fermi')
-                    gle_up_graph.write('\nend graph')
-                    gle_up_graph.close()
-
-                            
-                    gle_down_graph = open("spin_down" + ".gle", "w")
-                    gle_down_graph.write('size 10 6')
-                    #include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
-
-                    gle_down_graph.write('\ninclude "graphutil.gle"')
-                    gle_down_graph.write('\nset font texcmr')
-                    gle_down_graph.write('\n\nf_e = 0')
-                    gle_down_graph.write('\n\nsub graph_Fermi')
-                    gle_down_graph.write('\n   set lstyle 3 just lc')
-                    gle_down_graph.write('\n   graph_hline f_e')
-                    gle_down_graph.write('\nend sub')
-                    gle_down_graph.write('\n\nsub graph_vline x y1 y2')
-                    gle_down_graph.write('\n   default y1 ygmin')
-                    gle_down_graph.write('\n   default y2 ygmax')
-                    gle_down_graph.write('\n   amove xg(x) yg(y1)')
-                    gle_down_graph.write('\n   aline xg(x) yg(y2)')
-                    gle_down_graph.write('\nend sub')
-                    gle_down_graph.write('\n\nbegin graph\n')
-                    gle_down_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                    gle_down_graph.write('\n   xaxis max '+str(len(self.kpoints)))
-                    gle_down_graph.write('\n   xlabels off')
-                    gle_down_graph.write('\n   xticks off')
-                    gle_down_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                    gle_down_graph.write('\n   ysubticks off')
-                    gle_down_graph.write('\n   data "spin_down.dat"')
-                    gle_down_graph.write('\n   for alpha = 1 to '+str(self.nbands))
-                    gle_down_graph.write('\n      d[alpha] line color blue')
-                    gle_down_graph.write('\n   next alpha')
-                    gle_down_graph.write('\n   draw graph_Fermi')
-                    gle_down_graph.write('\nend graph')
-                    gle_down_graph.close()
-
-                else:
-                    gle_data = np.zeros((len(self.kpoints),self.nbands+1))
-                    gle_data[:,0] = self.kpoints
-                    gle_data[:,1:] = np.swapaxes(self.BandStructure[:self.nbands,:,0],0,1)
-                    np.savetxt("gle_bands.dat",gle_data)
-
-
-                    gle_graph = open("plot_bands" + ".gle", "w")
-                    gle_graph.write('size 10 6')
-                    #include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
-                    gle_graph.write('\ninclude "graphutil.gle"')
-                    gle_graph.write('\nset font texcmr')
-                    gle_graph.write('\n\nf_e = 0')
-                    gle_graph.write('\n\nsub graph_Fermi')
-                    gle_graph.write('\n   set lstyle 3 just lc')
-                    gle_graph.write('\n   graph_hline f_e')
-                    gle_graph.write('\nend sub')
-                    gle_graph.write('\n\nsub graph_vline x y1 y2')
-                    gle_graph.write('\n   default y1 ygmin')
-                    gle_graph.write('\n   default y2 ygmax')
-                    gle_graph.write('\n   amove xg(x) yg(y1)')
-                    gle_graph.write('\n   aline xg(x) yg(y2)')
-                    gle_graph.write('\nend sub')
-                    gle_graph.write('\n\nbegin graph\n')
-                    gle_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                    gle_graph.write('\n   xaxis max '+str(len(self.kpoints)))
-                    gle_graph.write('\n   xlabels off')
-                    gle_graph.write('\n   xticks off')
-                    gle_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                    gle_graph.write('\n   ysubticks off')
-                    gle_graph.write('\n   data "gle_bands.dat"')
-                    gle_graph.write('\n   for alpha = 1 to '+str(self.nbands))
-                    gle_graph.write('\n      d[alpha] line color black')
-                    gle_graph.write('\n   next alpha')
-                    gle_graph.write('\n   draw graph_Fermi')
-                    gle_graph.write('\nend graph')
-                    gle_graph.close()
         #now pdos is a thing
         else:
-
-            
             #calculate the pdos if needed
             self._pdos_read(pdos_species, pdos_popn_select, species_and_orb, orb_breakdown)
             #Plot all the bands highlighted by their majority species and orbital
@@ -863,196 +811,13 @@ class Spectral:
                             if self.popn_bands[nb,ns]:
                                 ax.plot(self.kpoints,self.BandStructure[nb,:,ns],linestyle=linestyle,linewidth=linewidth,color=spin_colors_select[ns])
                                 #selected_bands_data = open("sband_spec" +str(pdos_popn_select[0])+"_orb"+orbital_index_list[pdos_popn_select[1]]+ ".dat", "w")
-                                if selected_band_data.any() == None:
-                                    selected_band_data = np.zeros((len(self.kpoints),2))
-                                    selected_band_data[:,0] = self.kpoints
-                                    selected_band_data[:,1] = self.BandStructure[nb,:,ns]
-                                    single_band_data=np.zeros((len(self.kpoints),1))
-                                else:
-                                    #print(np.shape(selected_band_data))
-                                    #print(np.shape(self.kpoints))
-                                    single_band_data[:,0] = self.BandStructure[nb,:,ns] 
-                                    selected_band_data = np.concatenate((selected_band_data,single_band_data),axis=1)
-                                
-                                np.savetxt("sband_spec" +str(pdos_popn_select[0])+"_orb"+orbital_index_list[pdos_popn_select[1]]+ ".dat",selected_band_data)
-                                
-                                
                             else:
                                 ax.plot(self.kpoints,self.BandStructure[nb,:,ns],linestyle=linestyle,linewidth=linewidth,color=spin_colors[ns])
                         else:
                             raise Exception("Highlighting by population analysis unavailable for non-mono plots.")
-                
-                # NPBentley correction to export data in a gle readable format - this may need to go in the loops so that the chosen bands can be extracted?
-                
-                if output_data_files == True:
-                    gle_up_data = np.zeros((len(self.kpoints),self.nbands+1))
-                    gle_down_data = np.zeros((len(self.kpoints),self.nbands+1))
-                    gle_up_data[:,0] = self.kpoints
-                    gle_down_data[:,0] = self.kpoints
-                    gle_up_data[:,1:] = np.swapaxes(self.BandStructure[:self.nbands,:,0],0,1)
-                    gle_down_data[:,1:] = np.swapaxes(self.BandStructure[:self.nbands,:,1],0,1)
-                    np.savetxt("spin_up.dat",gle_up_data)
-                    np.savetxt("spin_down.dat",gle_down_data)
-                    #print(self.nbands)
-                    #print(np.shape(selected_band_data))
 
-                #Produce a .gle template, this can then be altered by the user as they see fit                                                                                                      
-
-                gle_up_graph = open("spin_up" + ".gle", "w")
-                gle_up_graph.write('size 10 6')
-                #include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
-                
-                gle_up_graph.write('\ninclude "graphutil.gle"')
-                gle_up_graph.write('\nset font texcmr')
-                gle_up_graph.write('\n\nf_e = 0')
-                gle_up_graph.write('\n\nsub graph_Fermi')
-                gle_up_graph.write('\n   set lstyle 3 just lc')
-                gle_up_graph.write('\n   graph_hline f_e')
-                gle_up_graph.write('\nend sub')
-                gle_up_graph.write('\n\nsub graph_vline x y1 y2')
-                gle_up_graph.write('\n   default y1 ygmin')
-                gle_up_graph.write('\n   default y2 ygmax')
-                gle_up_graph.write('\n   amove xg(x) yg(y1)')
-                gle_up_graph.write('\n   aline xg(x) yg(y2)')
-                gle_up_graph.write('\nend sub')
-                gle_up_graph.write('\n\nbegin graph\n')
-                gle_up_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                gle_up_graph.write('\n   xaxis max '+str(len(self.kpoints)))
-                gle_up_graph.write('\n   xlabels off')
-                gle_up_graph.write('\n   xticks off')
-                gle_up_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                gle_up_graph.write('\n   ysubticks off')
-                gle_up_graph.write('\n   data "spin_up.dat"')
-
-                for nb in range(self.nbands):
-                    for ns in spin_index:
-                        if not band_ids_mask[nb,ns]:
-                            continue
-
-                        if self.popn_bands[nb,ns]:
-                            gle_up_graph.write('\n      d'+str(nb)+' line color black')
-                        else:
-                            gle_up_graph.write('\n      d'+str(nb)+' line color red')
-                
-                gle_up_graph.write('\n   draw graph_Fermi')
-                gle_up_graph.write('\nend graph')
-                gle_up_graph.close()
-
-                gle_down_graph = open("spin_down" + ".gle", "w")
-                gle_down_graph.write('size 10 6')
-                #include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.                                                             
-                                                                                                                                                                                                     
-                gle_down_graph.write('\ninclude "graphutil.gle"')
-                gle_down_graph.write('\nset font texcmr')
-                gle_down_graph.write('\n\nf_e = 0')
-                gle_down_graph.write('\n\nsub graph_Fermi')
-                gle_down_graph.write('\n   set lstyle 3 just lc')
-                gle_down_graph.write('\n   graph_hline f_e')
-                gle_down_graph.write('\nend sub')
-                gle_down_graph.write('\n\nsub graph_vline x y1 y2')
-                gle_down_graph.write('\n   default y1 ygmin')
-                gle_down_graph.write('\n   default y2 ygmax')
-                gle_down_graph.write('\n   amove xg(x) yg(y1)')
-                gle_down_graph.write('\n   aline xg(x) yg(y2)')
-                gle_down_graph.write('\nend sub')
-                gle_down_graph.write('\n\nbegin graph\n')
-                gle_down_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                gle_down_graph.write('\n   xaxis max '+str(len(self.kpoints)))
-                gle_down_graph.write('\n   xlabels off')
-                gle_down_graph.write('\n   xticks off')
-                gle_down_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                gle_down_graph.write('\n   ysubticks off')
-                gle_down_graph.write('\n   data "spin_down.dat"')
-
-                for nb in range(self.nbands):
-                    for ns in spin_index:
-                        if not band_ids_mask[nb,ns]:
-                            continue
-
-                        if self.popn_bands[nb,ns]:
-                            gle_down_graph.write('\n      d'+str(nb)+' line color black')
-                        else:
-                            gle_down_graph.write('\n      d'+str(nb)+' line color blue')
-
-                gle_down_graph.write('\n   draw graph_Fermi')
-                gle_down_graph.write('\nend graph')
-                gle_down_graph.close()
-
-            elif (species_and_orb and output_data_files):
-
-                # NPBentley - Need to add support for non-spin polarised calculations.
-
-                gle_up_data = np.zeros((len(self.kpoints), self.nbands + 1))
-                gle_down_data = np.zeros((len(self.kpoints), self.nbands + 1))
-                gle_up_data[:, 0] = self.kpoints
-                gle_down_data[:, 0] = self.kpoints
-                gle_up_data[:, 1:] = np.swapaxes(self.BandStructure[:self.nbands, :, 0], 0, 1)
-                gle_down_data[:, 1:] = np.swapaxes(self.BandStructure[:self.nbands, :, 1], 0, 1)
-                np.savetxt("spin_up.dat", gle_up_data)
-                np.savetxt("spin_down.dat", gle_down_data)
-                #print(self.nbands)
-                #print(np.shape(selected_band_data))
-
-                gle_up_graph = open("spin_up_specorb" + ".gle", "w")
-                gle_up_graph.write('size 10 6')
-                # include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
-                gle_up_graph.write('\ninclude "graphutil.gle"')
-                gle_up_graph.write('\nset font texcmr')
-                gle_up_graph.write('\n\nf_e = 0')
-                gle_up_graph.write('\n\nsub graph_Fermi')
-                gle_up_graph.write('\n   set lstyle 3 just lc')
-                gle_up_graph.write('\n   graph_hline f_e')
-                gle_up_graph.write('\nend sub')
-                gle_up_graph.write('\n\nsub graph_vline x y1 y2')
-                gle_up_graph.write('\n   default y1 ygmin')
-                gle_up_graph.write('\n   default y2 ygmax')
-                gle_up_graph.write('\n   amove xg(x) yg(y1)')
-                gle_up_graph.write('\n   aline xg(x) yg(y2)')
-                gle_up_graph.write('\nend sub')
-                gle_up_graph.write('\n\nbegin graph\n')
-                gle_up_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                gle_up_graph.write('\n   xaxis max ' + str(len(self.kpoints)))
-                gle_up_graph.write('\n   xlabels off')
-                gle_up_graph.write('\n   xticks off')
-                gle_up_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                gle_up_graph.write('\n   ysubticks off')
-                gle_up_graph.write('\n   data "spin_up.dat"')
-                for i in range(self.nbands):
-                    gle_up_graph.write('\n   d'+str(i)+' line color spec'+str(int(self.band_char[0,i,0]))+'_orb'+str(int(self.band_char[1,i,0])))
-                gle_up_graph.write('\n   draw graph_Fermi')
-                gle_up_graph.write('\nend graph')
-                gle_up_graph.close()
-
-                gle_down_graph = open("spin_down_specorb" + ".gle", "w")
-                gle_down_graph.write('size 10 6')
-                # include the package for drawing horizontal and vertical lines, to highlight the Fermi energy and high symmetry kpoints.
-
-                gle_down_graph.write('\ninclude "graphutil.gle"')
-                gle_down_graph.write('\nset font texcmr')
-                gle_down_graph.write('\n\nf_e = 0')
-                gle_down_graph.write('\n\nsub graph_Fermi')
-                gle_down_graph.write('\n   set lstyle 3 just lc')
-                gle_down_graph.write('\n   graph_hline f_e')
-                gle_down_graph.write('\nend sub')
-                gle_down_graph.write('\n\nsub graph_vline x y1 y2')
-                gle_down_graph.write('\n   default y1 ygmin')
-                gle_down_graph.write('\n   default y2 ygmax')
-                gle_down_graph.write('\n   amove xg(x) yg(y1)')
-                gle_down_graph.write('\n   aline xg(x) yg(y2)')
-                gle_down_graph.write('\nend sub')
-                gle_down_graph.write('\n\nbegin graph\n')
-                gle_down_graph.write(r'   ytitle "\tex{$E - E_{\rm F}$} (eV)"')
-                gle_down_graph.write('\n   xaxis max ' + str(len(self.kpoints)))
-                gle_down_graph.write('\n   xlabels off')
-                gle_down_graph.write('\n   xticks off')
-                gle_down_graph.write('\n   yaxis nticks 5 min -2 max 2')
-                gle_down_graph.write('\n   ysubticks off')
-                gle_down_graph.write('\n   data "spin_down.dat"')
-                for i in range(self.nbands):
-                    gle_down_graph.write('\n   d'+str(i)+' line color spec'+str(int(self.band_char[0,i,1]))+'_orb'+str(int(self.band_char[1,i,1])))
-                gle_down_graph.write('\n   draw graph_Fermi')
-                gle_down_graph.write('\nend graph')
-                gle_down_graph.close()
+            elif (species_and_orb and output_gle):
+                self._plot_gle(spin_polarised, spin_index, species_and_orb)
 
             #Now we do the horrid part of plotting the colors
             else:
