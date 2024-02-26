@@ -361,7 +361,7 @@ class Spectral:
 
         return
 
-    def get_band_info(self, silent=False, bandwidth=None, band_order='F', ret_vbm_cbm_i=False):
+    def get_band_info(self, silent=False, bandwidth=None, band_order='F', ret_vbm_cbm=False):
         """Get a summary of the band structure.
 
         Author: V Ravindran (30/01/2024)
@@ -376,8 +376,9 @@ class Spectral:
             Type of array ordering to use when deciding which band to use for band width
             measurements. CASTEP uses Fortran ordering (arrays start from 1).
             (default : 'F')
-        ret_vbm_cbm_i : boolean
-            Return the index of the kpoint required to get the valence band maximum and conduction band minimum.
+        ret_vbm_cbm : boolean
+            Return the index of the kpoint required to get the valence band maximum and conduction band minimum
+            together with the respective eigenvalues.
 
         Returns
         -------
@@ -469,8 +470,8 @@ class Spectral:
             cb_width[ns] = np.max(cb_eigs) - np.min(cb_eigs)
 
         # At this point, decide if we just want to know where the VBM and CBM are
-        if ret_vbm_cbm_i is True:
-            return vbm_i, cbm_i
+        if ret_vbm_cbm is True:
+            return vbm_i, cbm_i, np.max(vb_eigs), np.min(cb_eigs)
 
         # Decide on the energy unit
         eng_unit = 'Hartrees'
@@ -1115,7 +1116,7 @@ class Spectral:
 
         # Mark the band gap on the plot V Ravindran 31/04/2024
         if mark_gap is True:
-            vbm_i, cbm_i = self.get_band_info(ret_vbm_cbm_i=True)
+            vbm_i, cbm_i, *_ = self.get_band_info(ret_vbm_cbm=True)
             # Decide on occupancies for each band depending on spin polarised or not
             if self.spin_polarised is True:
                 nelec = np.array([self.nup, self.ndown], dtype=int)
