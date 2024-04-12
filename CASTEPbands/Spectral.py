@@ -932,7 +932,8 @@ class Spectral:
                 mark_gap=False,
                 mark_gap_color=None,
                 mark_gap_headwidth=None,
-                mark_gap_linewidth=None):
+                mark_gap_linewidth=None,
+                band_labels=None):
         """Plot the band structure from a .bands file.
 
         Parameters
@@ -1006,7 +1007,8 @@ class Spectral:
             width of arrow head used to mark the gap. (list to specify for each spin channel)
         mark_gap_linewidth : float or list(dtype=float)
             width of arrow tail used to mark the gap. (list to specify for each spin channel)
-
+        band_labels : np.array(dtype=str, shape-same as band_ids)
+            labels for specific bands specified by bands_ids.
         Raises
         ------
         Exception
@@ -1142,23 +1144,68 @@ class Spectral:
         if axes_only:
             return
 
+        # Check if we want to use custom labels for the bands - band_labels V Ravindran 12/04/2024
+        if band_labels is not None:
+            # Check the user gave the data in the correct format/data structure
+            if band_ids is None:
+                # Although the local variable is band_ids_mask, this is initialised with true everywhere
+                # so the label will be applied to every band which is likely NOT what the user wants.
+                raise TypeError(
+                    'You must supply bands to band_ids to indicate which bands to label')
+            elif isinstance(band_labels, np.ndarray) is False:
+                raise TypeError(
+                    'Band labels must be supplied as a numpy character (str) array with the same shape as band_ids.'
+                )
+            elif band_ids.shape != band_labels.shape:
+                raise IndexError(
+                    f'band_ids{band_ids.shape} and band_labels{band_labels.shape} do not have the same shape'
+                )
+            else:
+                # Let's be sure that we have an array of characters and strip any whitespace
+                band_labels = np.char.strip(band_labels.astype(str))
+
         # Do the standard plotting, no pdos here
         if not pdos:
             # Here we plot all of the bands. We can provide a mechanism latter for plotting invididual ones
+
+            # Store the lines for each band in a list - band_labels V Ravindran 12/04/2024
+            # so we can add them to legend when labelling. -  band_labels V Ravindran 12/04/2024
+            custom_lines = []
+            l_labels = []  # local copy of band_labels as a list
             for nb in range(self.nbands):
                 for ns in spin_index:
 
                     if not band_ids_mask[nb, ns]:
+                        # If the band is not within the mask,
+                        # then do not plot it and skip to the next band.
                         continue
                         # Mono
                     if mono:
-                        ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth, color=mono_color)
+                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth, color=mono_color)
 
                     elif spin_polarised:
-                        ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth, color=spin_colors[ns])
+                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth, color=spin_colors[ns])
 
                     else:
-                        ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth)
+                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth)
+
+                    if band_labels is not None:  # band_labels V Ravindran 12/04/2024
+                        # V Ravindran: The check further up should have caught the fact that band_ids
+                        # needs to be supplied together with band_labels.
+                        # This *should* prevent every band from being labelled.
+                        # Thus only bands we want to label should be added.
+                        #
+                        # Unfortunately, it requires this routine to be called twice,
+                        # once for the overall band structure, and the second for the labels...
+                        custom_lines.append(line)
+                        l_labels.append(band_labels[nb,ns])
+
+            # Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
+            if band_labels is not None:
+                ax.legend(custom_lines, l_labels)
 
             if output_gle:
                 self._plot_gle(spin_polarised,spin_index)
