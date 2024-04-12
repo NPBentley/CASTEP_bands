@@ -556,7 +556,7 @@ class Spectral:
 
         kpoints = np.zeros((num_kpoints, 3))
         pdos_weights = np.zeros((num_popn_orb, max_eigenvalues, num_kpoints, num_spins))
-    
+
         pdos_orb_spec = np.zeros((num_species, 4, max_eigenvalues, num_kpoints, num_spins))
 
         #NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
@@ -571,7 +571,7 @@ class Spectral:
             for ns in range(0, num_spins):
                 spin_index = f.read_ints('>u4')[0]
                 num_eigenvalues = f.read_ints('>u4')[0]
-    
+
                 for nb in range(0, num_eigenvalues):
                     pdos_weights[0:num_popn_orb, nb, nk, ns] = f.read_reals('>f8')
                     norm=np.sum((pdos_weights[0:num_popn_orb, nb, nk, ns]))
@@ -594,7 +594,7 @@ class Spectral:
 
             l_ind=orbital_l[i]
             spec_ind=orbital_species[i]-1
-       
+
             pdos_orb_spec[spec_ind, l_ind, :, :, :] = pdos_orb_spec[spec_ind, l_ind, :, :, :] + pdos_weights[i, :, :, :]
 
         # Go through each kpoint, band and spin to find the species and orbital with highest occupancy.
@@ -604,7 +604,7 @@ class Spectral:
             for nb in range(max_eigenvalues):
                 for ns in range(num_spins):
                     max_spec,max_l=np.where(pdos_orb_spec[:, :, nb, nk, ns]==np.max(pdos_orb_spec[:, :, nb, nk, ns]))
-       
+
                     pdos_orb_spec[:, :, nb, nk, ns]=0
                     pdos_orb_spec[max_spec[0], max_l[0], nb, nk, ns]=1
 
@@ -620,7 +620,7 @@ class Spectral:
         for nb in range(0, max_eigenvalues):
             for ns in range(0, num_spins):
                 max_spec, max_l=np.where(pdos_bands[:, :, nb, ns] == np.max(pdos_bands[:, :, nb, ns]))
-    
+
                 band_char[0, nb, ns] = max_spec[0]+1 #Define species
                 band_char[1, nb, ns] = max_l[0] #Define orbital
 
@@ -628,7 +628,7 @@ class Spectral:
         if species_and_orb:
             self.band_char=band_char
 
-        # Now filter based on user input                                                                                                                                  
+        # Now filter based on user input
         popn_bands=np.zeros((max_eigenvalues,num_spins),dtype=bool)
         if popn_select[0] is not None:
             for nb in range(max_eigenvalues):
@@ -1156,7 +1156,7 @@ class Spectral:
 
                     elif spin_polarised:
                         ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth, color=spin_colors[ns])
-                                               
+
                     else:
                         ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth)
 
@@ -1174,7 +1174,7 @@ class Spectral:
                     for ns in spin_index:
                         if not band_ids_mask[nb, ns]:
                             continue
-                
+
                         # Mono
                         if mono:
                             if self.popn_bands[nb, ns]:
