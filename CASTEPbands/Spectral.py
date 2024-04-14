@@ -296,7 +296,7 @@ class Spectral:
 
                 if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
                     if i == "G":
-                        ticks[k_count] = "$\Gamma$"
+                        ticks[k_count] = r"$\Gamma$"
                     else:
                         ticks[k_count] = i
                     found = True
@@ -443,13 +443,14 @@ class Spectral:
         vb_width = np.empty(self.nspins)
         cb_width = np.empty(self.nspins)
 
+        # Set occupancies
+        occ = 1
+        if (self.nspins == 1):
+            # If not spin polarised, then we are doubly occupying levels
+            occ = 2
+
         # Get gaps for each spin channel
         for ns in range(self.nspins):
-            occ = 1
-            if (self.nspins == 1):
-                # If not spin polarised, then we are doubly occupying levels
-                occ = 2
-
             vb_eigs = self.BandStructure[int(nelecs[ns] / occ) - 1, :, ns]
             cb_eigs = self.BandStructure[int(nelecs[ns] / occ), :, ns]
 
@@ -996,10 +997,13 @@ class Spectral:
             mark the band gap on the plot
         mark_gap_color : string or list(dtype=string)
             colours to use when marking the band gap (list to specify for each spin channel)
+            (default : red for spin 1, blue for spin 2)
         mark_gap_headwidth : float or list(dtype=float)
             width of arrow head used to mark the gap. (list to specify for each spin channel)
+            (default : 0.75 for both spin channels)
         mark_gap_linewidth : float or list(dtype=float)
             width of arrow tail used to mark the gap. (list to specify for each spin channel)
+            (default : 0.15 for both spin channels)
         band_labels : np.array(dtype=str, shape-same as band_ids)
             labels for specific bands specified by bands_ids.
         Raises
@@ -1063,7 +1067,8 @@ class Spectral:
 
         ax.set_xlim(1, len(self.kpoints))
         ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
-        ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6, right=True, top=False, bottom=False, left=True, width=1.2)
+        ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
+                       right=True, top=False, bottom=False, left=True, width=1.2)
         ax.set_xticks(self.high_sym)
         ax.set_xticklabels(self.high_sym_labels)
         ax.minorticks_on()
@@ -1084,7 +1089,7 @@ class Spectral:
                 # Using high-symmetry points to decide label
                 for n, label in enumerate(user_klim):
                     if label.strip() == 'G':
-                        label = '$\Gamma$'
+                        label = r'$\Gamma$'
                     indx = [i for i, pt in enumerate(self.high_sym_labels) if label == pt]
 
                     if len(indx) > 1:
@@ -1092,7 +1097,7 @@ class Spectral:
                         print('{} point appears more than once in band structure.'.format(label))
                         print('Path in calculation: ', end='')
                         for i, pt in enumerate(self.high_sym_labels):
-                            if pt == '$\Gamma$':
+                            if pt == r'$\Gamma$':
                                 pt = 'G'
                             if i == len(self.high_sym_labels) - 1:
                                 print(pt)
