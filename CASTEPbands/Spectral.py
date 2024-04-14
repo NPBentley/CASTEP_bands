@@ -920,6 +920,7 @@ class Spectral:
                 pdos_species=False,
                 pdos_popn_select=[None, None],
                 band_ids=None,
+                band_colors=None,
                 output_gle=False,
                 species_and_orb=False,
                 orb_breakdown=False,
@@ -927,7 +928,9 @@ class Spectral:
                 mark_gap_color=None,
                 mark_gap_headwidth=None,
                 mark_gap_linewidth=None,
-                band_labels=None):
+                band_labels=None,
+                legend_loc='best'
+                ):
         """Plot the band structure from a .bands file.
 
         Parameters
@@ -985,6 +988,8 @@ class Spectral:
             population analysis
         band_ids : ndarray(dtype=int)
             plot only specific bands in the band structure.
+        band_colors : list(dtype=str)
+            colours to use when plotting the band structure
         output_gle : Boolean
             Produce the output ".dat" and ".gle" files for plotting bandstructures using GLE.
         species_and_orb : Boolean
@@ -1006,6 +1011,9 @@ class Spectral:
             (default : 0.15 for both spin channels)
         band_labels : np.array(dtype=str, shape-same as band_ids)
             labels for specific bands specified by bands_ids.
+        legend_loc : str or pair of floats
+            position of the legend for the plot if a legend is created (default: 'best')
+
         Raises
         ------
         Exception
@@ -1142,6 +1150,58 @@ class Spectral:
         if axes_only:
             return
 
+        def _setup_str_mask(user_strings, band_ids_mask):
+            """Setup a character array according to the bands mask
+
+            The same convention is followed as above with regard to spin channels.
+            Author : V Ravindran, 12/04/2024
+            """
+            # Let's be sure that we have an array of characters and strip any whitespace.
+            user_strings = np.char.strip(user_strings.astype(str))
+
+            # Get the bands to label - spins done in the loop below
+            do_bands_b = np.where(band_ids_mask)[0]
+            if user_strings.ndim == 2:
+                # Decided to label for different bands in different spin channels
+                do_bands_s = np.where(band_ids_mask)[1]
+
+            assert user_strings.shape[0] == do_bands_b.shape[0]
+
+            # Now set up the labels following the mask provided.
+            string_mask = np.empty(band_ids_mask.shape, dtype=user_strings.dtype)
+            for i in range(len(do_bands_b)):
+                nb = do_bands_b[i]
+                if user_strings.ndim == 2:
+                    ns = do_bands_s[i]
+                    # A label was provided for different bands across different spins
+                    string_mask[nb, ns] = user_strings[i, ns]
+                else:
+                    # Do the label only for a specific spin channel based on spin_index provided
+                    for do_spin in spin_index:
+                        string_mask[nb, do_spin] = user_strings[i]
+
+            return string_mask
+
+        # Check if we want to use user-defined colours on a per-band-basis - band_colors V Ravindran 14/04/2024
+        if band_colors is not None:
+            # Check the user gave the data in the correct format/data structure
+            if band_ids is None:
+                # Although the local variable is band_ids_mask, this is initialised with true everywhere
+                # so the colour will be applied to every band which is likely NOT what the user wants.
+                raise TypeError(
+                    'You must supply bands to band_ids to indicate which bands to colour'
+                )
+            elif isinstance(band_labels, np.ndarray) is False:
+                raise TypeError(
+                    'Band colours must be supplied as a numpy character (str) array with the same shape as band_ids.'
+                )
+            elif band_ids.shape != band_colors.shape:
+                raise IndexError(
+                    f'band_ids{band_ids.shape} and band_colors{band_colors.shape} do not have the same shape'
+                )
+            # Set up colours according to the band_ids_mask
+            band_colors = _setup_str_mask(band_colors, band_ids_mask)
+
         # Check if we want to use custom labels for the bands - band_labels V Ravindran 12/04/2024
         if band_labels is not None:
             # Check the user gave the data in the correct format/data structure
@@ -1149,7 +1209,8 @@ class Spectral:
                 # Although the local variable is band_ids_mask, this is initialised with true everywhere
                 # so the label will be applied to every band which is likely NOT what the user wants.
                 raise TypeError(
-                    'You must supply bands to band_ids to indicate which bands to label')
+                    'You must supply bands to band_ids to indicate which bands to label'
+                )
             elif isinstance(band_labels, np.ndarray) is False:
                 raise TypeError(
                     'Band labels must be supplied as a numpy character (str) array with the same shape as band_ids.'
@@ -1158,9 +1219,9 @@ class Spectral:
                 raise IndexError(
                     f'band_ids{band_ids.shape} and band_labels{band_labels.shape} do not have the same shape'
                 )
-            else:
-                # Let's be sure that we have an array of characters and strip any whitespace
-                band_labels = np.char.strip(band_labels.astype(str))
+
+            # Set up labels according to the band_ids_mask
+            band_labels = _setup_str_mask(band_labels, band_ids_mask)
 
         # Do the standard plotting, no pdos here
         if not pdos:
@@ -1178,17 +1239,23 @@ class Spectral:
                         # then do not plot it and skip to the next band.
                         continue
                         # Mono
+
+                    # Updated colour selection V Ravindran 14/04/2024
+                    line_color = ''
                     if mono:
-                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth, color=mono_color)
-
+                        line_color = mono_color
+                    elif band_colors is not None:
+                        line_color = band_colors[nb, ns]
                     elif spin_polarised:
-                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth, color=spin_colors[ns])
+                        line_color = spin_colors[ns]
 
-                    else:
+                    if line_color == '':
+                        # No colour specified so let pick from rcParams
                         line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
                                            linestyle=linestyle, linewidth=linewidth)
+                    else:
+                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth, color=line_color)
 
                     if band_labels is not None:  # band_labels V Ravindran 12/04/2024
                         # V Ravindran: The check further up should have caught the fact that band_ids
@@ -1203,7 +1270,8 @@ class Spectral:
 
             # Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
             if band_labels is not None:
-                ax.legend(custom_lines, l_labels)
+                ax.legend(custom_lines, l_labels, loc=legend_loc)
+                # Return the lines and labels so the user can customise the legend how they wish
 
             if output_gle:
                 self._plot_gle(spin_polarised, spin_index)
