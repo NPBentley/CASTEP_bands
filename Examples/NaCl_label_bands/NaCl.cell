@@ -1,0 +1,21 @@
+symmetry_generate
+kpoints_mp_grid 4 4 4
+
+%block lattice_cart
+0.000000  2.8201   2.8201
+2.8201  0.000000   2.8201
+2.8201  2.8201   0.000000
+%endblock lattice_cart
+
+%block positions_frac
+Na 0.00 0.00 0.00
+Cl 0.50 0.50 0.50
+%endblock positions_frac
+
+%block spectral_kpoint_path
+L
+W
+K
+G
+X
+%endblock spectral_kpoint_path

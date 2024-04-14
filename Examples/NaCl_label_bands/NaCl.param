@@ -1,0 +1,8 @@
+task : spectral 
+spectral_task : bandstructure 
+xc_functional : PBESol 
+fix_occupancy : true 
+
+cut_off_energy : 800
+data_distribution : kpoint 
+
