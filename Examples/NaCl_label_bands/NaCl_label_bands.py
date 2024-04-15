@@ -24,8 +24,8 @@ NaCl_bands = Spectral.Spectral('NaCl', zero_fermi=True)
 
 # Get the band index of the valence and conduction band
 # noting that we have double occupancy.
-vb_i = int(NaCl_bands.electrons/2) - 1
-cb_i = int(NaCl_bands.electrons/2)
+vb_i = int(NaCl_bands.electrons / 2) - 1
+cb_i = int(NaCl_bands.electrons / 2)
 
 fig, ax = plt.subplots()
 plt.title('NaCl\nPBESol', fontsize=16)
