@@ -989,7 +989,7 @@ class Spectral:
         band_ids : ndarray(dtype=int)
             plot only specific bands in the band structure.
         band_colors : list(dtype=str)
-            colours to use when plotting the band structure
+            colours to use when plotting the bands according to band_ids.
         output_gle : Boolean
             Produce the output ".dat" and ".gle" files for plotting bandstructures using GLE.
         species_and_orb : Boolean
@@ -1009,7 +1009,7 @@ class Spectral:
         mark_gap_linewidth : float or list(dtype=float)
             width of arrow tail used to mark the gap. (list to specify for each spin channel)
             (default : 0.15 for both spin channels)
-        band_labels : np.array(dtype=str, shape-same as band_ids)
+        band_labels : list(dtype=str)
             labels for specific bands specified by bands_ids.
         legend_loc : str or pair of floats
             position of the legend for the plot if a legend is created (default: 'best')
@@ -1151,74 +1151,77 @@ class Spectral:
             return
 
         def _setup_str_mask(user_strings, band_ids_mask):
-            """Setup a character array according to the bands mask
+            """Setup a character array according to the bands mask.
 
             The same convention is followed as above with regard to spin channels.
             Author : V Ravindran, 12/04/2024
             """
-            # Let's be sure that we have an array of characters and strip any whitespace.
-            user_strings = np.char.strip(user_strings.astype(str))
+            # Strip any whitespace.
+            user_strings = np.char.strip(np.array(user_strings))
 
             # Get the bands to label - spins done in the loop below
             do_bands_b = np.where(band_ids_mask)[0]
-            if user_strings.ndim == 2:
+            if band_ids_mask.ndim == 2:
                 # Decided to label for different bands in different spin channels
                 do_bands_s = np.where(band_ids_mask)[1]
 
-            assert user_strings.shape[0] == do_bands_b.shape[0]
+            assert len(user_strings) == do_bands_b.shape[0]
 
             # Now set up the labels following the mask provided.
-            string_mask = np.empty(band_ids_mask.shape, dtype=user_strings.dtype)
+            string_masked = np.empty(band_ids_mask.shape, dtype=user_strings.dtype)
             for i in range(len(do_bands_b)):
                 nb = do_bands_b[i]
-                if user_strings.ndim == 2:
+                if band_ids_mask.ndim == 2:
                     ns = do_bands_s[i]
                     # A label was provided for different bands across different spins
-                    string_mask[nb, ns] = user_strings[i, ns]
+                    string_masked[nb, ns] = user_strings[i]
                 else:
                     # Do the label only for a specific spin channel based on spin_index provided
                     for do_spin in spin_index:
-                        string_mask[nb, do_spin] = user_strings[i]
+                        string_masked[nb, do_spin] = user_strings[i]
 
-            return string_mask
+            return string_masked
+
+        def _check_user_input_str_mask(user_strings, band_ids, errstr):
+            """Check the user provided the appropriate format for strings.
+
+            This function should be called before actually getting the masked character array
+            using _setup_str_mask.
+            Author : V Ravindran, 14/04/2024
+            """
+            # Check the user provided band_ids.
+            # Although the local variable is band_ids_mask, this is initialised to
+            # true everywhere so we cannot actually mask the actual character array according to bands.
+            # Therefore, we have to make sure it is actually provided and check against the user's
+            # data, NOT the local copy.
+            errstr = errstr.strip()
+            if band_ids is None:
+                raise TypeError(
+                    f'You must supply bands to band_ids to indicate which bands to {errstr}'
+                )
+            elif np.array(user_strings).ndim != 1:
+                raise IndexError(
+                    f'Band {errstr}s should be a 1D array array with length of number of bands to act on.'
+                )
+            elif band_ids.shape[0] != len(user_strings):
+                raise IndexError(
+                    f'Number of bands {band_ids.shape[0]} does not match number of {errstr}s {len(user_strings)}.'
+                )
 
         # Check if we want to use user-defined colours on a per-band-basis - band_colors V Ravindran 14/04/2024
         if band_colors is not None:
-            # Check the user gave the data in the correct format/data structure
-            if band_ids is None:
-                # Although the local variable is band_ids_mask, this is initialised with true everywhere
-                # so the colour will be applied to every band which is likely NOT what the user wants.
-                raise TypeError(
-                    'You must supply bands to band_ids to indicate which bands to colour'
-                )
-            elif isinstance(band_labels, np.ndarray) is False:
-                raise TypeError(
-                    'Band colours must be supplied as a numpy character (str) array with the same shape as band_ids.'
-                )
-            elif band_ids.shape != band_colors.shape:
-                raise IndexError(
-                    f'band_ids{band_ids.shape} and band_colors{band_colors.shape} do not have the same shape'
-                )
+            # Check the user gave the data in the correct format/data structure.
+            # NB must check against user input not the local copy (band_ids_mask)
+            _check_user_input_str_mask(band_colors, band_ids, 'colour')
+
             # Set up colours according to the band_ids_mask
             band_colors = _setup_str_mask(band_colors, band_ids_mask)
 
         # Check if we want to use custom labels for the bands - band_labels V Ravindran 12/04/2024
         if band_labels is not None:
-            # Check the user gave the data in the correct format/data structure
-            if band_ids is None:
-                # Although the local variable is band_ids_mask, this is initialised with true everywhere
-                # so the label will be applied to every band which is likely NOT what the user wants.
-                raise TypeError(
-                    'You must supply bands to band_ids to indicate which bands to label'
-                )
-            elif isinstance(band_labels, np.ndarray) is False:
-                raise TypeError(
-                    'Band labels must be supplied as a numpy character (str) array with the same shape as band_ids.'
-                )
-            elif band_ids.shape != band_labels.shape:
-                raise IndexError(
-                    f'band_ids{band_ids.shape} and band_labels{band_labels.shape} do not have the same shape'
-                )
+            # Check the user gave the data in the correct format/data structure.
+            # NB must check against user input not the local copy (band_ids_mask)
+            _check_user_input_str_mask(band_labels, band_ids, 'label')
 
             # Set up labels according to the band_ids_mask
             band_labels = _setup_str_mask(band_labels, band_ids_mask)

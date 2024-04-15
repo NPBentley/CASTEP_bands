@@ -51,11 +51,11 @@ NaCl_bands.plot_bs(
     fontsize=fontsize,
     show_fermi=False,
     band_ids=np.array([vb_i, cb_i]),
-    band_labels=np.array(['VB', 'CB']),
-    band_colors=np.array(['b', 'r']),
+    band_labels=['VB', 'CB'],
+    band_colors=['b', 'r'],
     linewidth=2.0
 )
 
 
 plt.tight_layout()
-plt.show()
+plt.savefig('NaCl_label_bands.png')
