@@ -26,6 +26,9 @@ class Spectral:
     -----------
     seed : string
          The seedname of the CASTEP run, e.g.  <seedname>.bands.
+    use_vbm_fermi : boolean
+         Use the valence band maximum (VBM) as the Fermi energy.
+         This is particularly useful for instulators (default : False)
     zero_fermi : boolean
          Should the eigenvalues be shifted such that the Fermi energy is at the zero of energy (Default : True)
     zero_vbm : boolean
@@ -56,6 +59,7 @@ class Spectral:
     def __init__(self,
                  seed,
                  zero_fermi=True,
+                 use_vbm_fermi=False,
                  zero_vbm=False,
                  zero_cbm=False,
                  zero_shift=None,
@@ -94,6 +98,7 @@ class Spectral:
         self.zero_fermi = zero_fermi
         self.zero_vbm = zero_vbm
         self.zero_cbm = zero_cbm
+        self.use_vbm_fermi = use_vbm_fermi
 
         # First we try to open the file
 
@@ -177,8 +182,7 @@ class Spectral:
                 band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
                 band_structure[:, k, 1] = eV * np.array([float(i) for i in lines[ind + no_eigen + 1:ind + no_eigen + 1 + no_eigen_2]])
 
-        # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
-        # NB: For zero_cbm and zero_vbm, we take the VBM/CBM from the first spin channel if spin polarised (arbitrarily).
+        # Get valence and conduction bands
         if no_spins == 1:
             vb_eigs = band_structure[int(no_electrons / 2) - 1, :, 0]
             cb_eigs = band_structure[int(no_electrons / 2), :, 0]
@@ -186,6 +190,13 @@ class Spectral:
             vb_eigs = band_structure[int(n_up) - 1, :, 0]
             cb_eigs = band_structure[int(n_up), :, 0]
 
+        # Decide if we now want to keep the CASTEP Fermi energy or use the VBM - V Ravindran 30/04/2024
+        if use_vbm_fermi is True:
+            fermi_energy = np.amax(vb_eigs)
+            self.Ef = fermi_energy * eV
+
+        # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
+        # NB: For zero_cbm and zero_vbm, we take the VBM/CBM from the first spin channel if spin polarised (arbitrarily).
         # The error handling for this is a bit of a pain in the arse for this one...
         # In order of preference(highest to lowest): zero_vbm,zero_shift,zero_cbm,zero_fermi (since it's default)
         if zero_vbm is True:
