@@ -1,5 +1,3 @@
-import os
-import sys
 import time
 import warnings
 from itertools import cycle
@@ -271,19 +269,16 @@ class Spectral:
         self.high_sym = high_sym
 
         # Set up the special points
-        warnings.filterwarnings("ignore")
-        # try:
-        # sys.stdout = open(os.devnull, 'w')
-
-        with open(os.devnull, "w") as devnull:
-            old_stdout = sys.stdout
-            sys.stdout = devnull
-            cell = io.read(seed + ".cell")
-            bv_latt = cell.cell.get_bravais_lattice()
-            special_points = bv_latt.get_special_points()
-            sys.stdout = old_stdout
-
-        # sys.stdout = sys.__stdout__
+        # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
+        # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
+        # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
+        # CASTEP_COMMAND environmental variable is set                                                 V Ravindran CELL_READ 01/05/2024
+        cell = io.read(seed + ".cell",
+                       # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                       calculator_args={"keyword_tolerance": 3}
+                       )
+        bv_latt = cell.cell.get_bravais_lattice()
+        special_points = bv_latt.get_special_points()
 
         atoms = np.unique(cell.get_chemical_symbols())[::-1]
         mass = []
