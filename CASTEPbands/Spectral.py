@@ -216,9 +216,10 @@ class Spectral:
             eng_shift = 0.0
 
         # Now perform the shift for real
-        for k in range(no_kpoints):
-            for ns in range(no_spins):
-                band_structure[:, k, ns] = band_structure[:, k, ns] - eng_shift
+        # for k in range(no_kpoints):
+        #     for ns in range(no_spins):
+        #         band_structure[:, k, ns] = band_structure[:, k, ns] - eng_shift
+        band_structure = band_structure - eng_shift  # Vectorized shift V Ravindran 30/04/2024
 
         # Don't forget to shift the Fermi energy as well V Ravindran 31/01/2024
         self.Ef = self.Ef - eng_shift
