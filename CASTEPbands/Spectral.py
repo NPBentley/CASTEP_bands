@@ -374,6 +374,9 @@ class Spectral:
 
         Author: V Ravindran (30/01/2024)
 
+        Updated: 01/05/2024 to use vectorised operations
+        Corrected ret_vbm_cbm to return vbms for each spin channel
+
         Parameters
         ----------
         silent : boolean
@@ -441,46 +444,47 @@ class Spectral:
             nelecs[0] = self.electrons
             nbands[0] = self.eig_up
 
-        vbm_i = np.empty(self.nspins, dtype=int)  # valence band maximum
-        cbm_i = np.empty(self.nspins, dtype=int)  # conduction band minimum
-        gap_in = np.empty(self.nspins)  # indirect gap
-        gap_dir = np.empty(self.nspins)  # direct gap
-        loc_in = np.empty((self.nspins, 2, 3))  # spin, VBM/CBM, coordinates
-        loc_dir = np.empty((self.nspins, 3))  # spin, coordinates
-        vb_width = np.empty(self.nspins)
-        cb_width = np.empty(self.nspins)
-
         # Set occupancies
         occ = 1
         if (self.nspins == 1):
             # If not spin polarised, then we are doubly occupying levels
             occ = 2
 
-        # Get gaps for each spin channel
+        # Vectorised operations V Ravindran 01/05/2024
+        # Get valence and conduction bands for each spin
+        vb_eigs = np.empty((self.nspins, self.n_kpoints))
+        cb_eigs = np.empty((self.nspins, self.n_kpoints))
         for ns in range(self.nspins):
-            vb_eigs = self.BandStructure[int(nelecs[ns] / occ) - 1, :, ns]
-            cb_eigs = self.BandStructure[int(nelecs[ns] / occ), :, ns]
+            vb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ) - 1, :, ns]
+            cb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ), :, ns]
 
-            # Determine valence band maximum and conduction band minimum to get direct gap
-            # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
-            vbm_i[ns], cbm_i[ns] = np.argmax(vb_eigs), np.argmin(cb_eigs)
-            gap_in[ns] = cb_eigs[cbm_i[ns]] - vb_eigs[vbm_i[ns]]
+        # Determine valence band maximum and conduction band minimum to get (indirect) gap
+        # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
+        vbm_i = np.argmax(vb_eigs, axis=1)  # valence band maximum kpt index
+        cbm_i = np.argmin(cb_eigs, axis=1)  # conduction band minimum kpt index
+        vbm_eig = np.max(vb_eigs, axis=1)
+        cbm_eig = np.min(cb_eigs, axis=1)
+        gap_in = cbm_eig - vbm_eig
 
-            # Determine locations of the valence band minimum and conduction band maximum
+        # At this point, decide if we just want to know where the VBM and CBM are
+        if ret_vbm_cbm is True:
+            return vbm_i, cbm_i, vbm_eig, cbm_eig
+
+        # Determine locations of the valence band minimum and conduction band maximum
+        loc_in = np.empty((self.nspins, 2, 3))  # spin, VBM/CBM, coordinates
+        loc_dir = np.empty((self.nspins, 3))
+        gap_dir = np.empty(self.nspins)
+        for ns in range(self.nspins):
             loc_in[ns, 0, :] = self.kpoint_list[vbm_i[ns]]
             loc_in[ns, 1, :] = self.kpoint_list[cbm_i[ns]]
 
             # Now do the direct gap
-            gap_dir[ns] = cb_eigs[vbm_i[ns]] - vb_eigs[vbm_i[ns]]
+            gap_dir[ns] = cb_eigs[ns, vbm_i[ns]] - vb_eigs[ns, vbm_i[ns]]
             loc_dir[ns, :] = self.kpoint_list[vbm_i[ns]]
 
-            # Get the band widths
-            vb_width[ns] = np.max(vb_eigs) - np.min(vb_eigs)
-            cb_width[ns] = np.max(cb_eigs) - np.min(cb_eigs)
-
-        # At this point, decide if we just want to know where the VBM and CBM are
-        if ret_vbm_cbm is True:
-            return vbm_i, cbm_i, np.max(vb_eigs), np.min(cb_eigs)
+        # Get the band widths
+        vb_width = np.max(vb_eigs, axis=1) - np.min(vb_eigs, axis=1)
+        cb_width = np.max(cb_eigs, axis=1) - np.min(cb_eigs, axis=1)
 
         # Decide on the energy unit
         eng_unit = 'Hartrees'
@@ -489,6 +493,8 @@ class Spectral:
         # Now put everything into band_info
         band_info['nelec'] = nelecs
         band_info['nbands'] = nbands
+        band_info['vbm'] = vbm_eig
+        band_info['cbm'] = cbm_eig
         band_info['gap_indir'] = gap_in
         band_info['loc_indir'] = loc_in
         band_info['gap_dir'] = gap_dir
@@ -514,6 +520,8 @@ class Spectral:
                 print('No. of bands:     ', nbands[ns])
                 kx_vbm, ky_vbm, kz_vbm = loc_in[ns, 0, :]
                 kx_cbm, ky_cbm, kz_cbm = loc_in[ns, 1, :]
+                print(f'Valence band maximum    (VBM): {vbm_eig[ns]:.6f} {eng_unit}')
+                print(f'Conduction band maximum (CBM): {cbm_eig[ns]:.6f} {eng_unit}')
                 print('Indirect gap: {:.6f} {}  from {:.6f} {:.6f} {:.6f} --> {:.6f} {:.6f} {:.6f}'.format(
                     gap_in[ns], eng_unit,
                     kx_vbm, ky_vbm, kz_vbm,
