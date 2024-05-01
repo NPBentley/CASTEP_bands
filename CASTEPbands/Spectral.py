@@ -180,7 +180,7 @@ class Spectral:
                 band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
                 band_structure[:, k, 1] = eV * np.array([float(i) for i in lines[ind + no_eigen + 1:ind + no_eigen + 1 + no_eigen_2]])
 
-        # Get valence and conduction bands
+        # Get valence and conduction bands (for up spin if spin polarised)
         if no_spins == 1:
             vb_eigs = band_structure[int(no_electrons / 2) - 1, :, 0]
             cb_eigs = band_structure[int(no_electrons / 2), :, 0]
@@ -190,7 +190,11 @@ class Spectral:
 
         # Decide if we now want to keep the CASTEP Fermi energy or use the VBM - V Ravindran 30/04/2024
         if use_vbm_fermi is True:
-            fermi_energy = np.amax(vb_eigs)
+            fermi_energy = np.amax(vb_eigs) / eV
+            # Eigenvalues are already in the appropriate unit but Fermi energy was not converted initially
+            # Path of least resistance is to convert to Hartrees and then convert to eV again rather than changing the
+            # rest of the code.
+            # TODO If I can be bothered, I might actually refactor this initialisation bit it in the future...
             self.Ef = fermi_energy * eV
 
         # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
