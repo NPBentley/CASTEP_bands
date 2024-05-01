@@ -445,6 +445,7 @@ class Spectral:
             nbands[0] = self.eig_up
 
         # Set occupancies
+        # TODO MAKE THIS A FUNCTION - for non-collinear, we have twice the number of bands as there are two spinor components although only one spin
         occ = 1
         if (self.nspins == 1):
             # If not spin polarised, then we are doubly occupying levels
