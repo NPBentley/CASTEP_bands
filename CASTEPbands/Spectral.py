@@ -388,6 +388,7 @@ class Spectral:
         if high_sym_spacegroup is True:
             special_points = _get_high_sym_points_spg(cell)
         else:
+            # Get special from the crystal system of the computational cell.
             bv_latt = cell.cell.get_bravais_lattice()
             special_points = bv_latt.get_special_points()
 
