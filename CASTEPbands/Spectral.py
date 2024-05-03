@@ -1,3 +1,9 @@
+"""
+The main module that handles the reading of CASTEP band strucutres.
+
+All the relevant band structure data is stored in the Spectral class and manipulations
+are largely done using the methods contained therein.
+"""
 import time
 import warnings
 from itertools import cycle
@@ -108,7 +114,7 @@ class Spectral:
         try:
             bands_file = seed + ".bands"
             bands = open(bands_file, 'r')
-        except:
+        except FileNotFoundError:
             raise FileNotFoundError("No .bands file")
 
         lines = bands.readlines()
@@ -153,7 +159,7 @@ class Spectral:
 
         kpt_weights = np.zeros(no_kpoints)
 
-        kpoint_array = np.empty(shape=(no_kpoints))  # the array holding the number of the kpoint
+        kpoint_array = np.empty(no_kpoints)  # the array holding the number of the kpoint
         kpoint_list = []  # array of the kpoint vectors
 
         if no_spins == 1:
@@ -479,8 +485,6 @@ class Spectral:
 
         # ... and the Fermi energy
         self.Ef -= eng_shift
-
-        return
 
     def get_band_info(self, silent=False, bandwidth=None, band_order='F', ret_vbm_cbm=False):
         """Get a summary of the band structure.
@@ -2115,8 +2119,9 @@ class Spectral:
 
         Defaults to current axes object if not specified.
         '''
-        import matplotlib.pyplot as plt
-        import numpy as np
+        # Already imported at top level, no need to reimport V Ravindran 03/05/2024
+        # import matplotlib.pyplot as plt
+        # import numpy as np
         if ax is None:
             ax = plt.gca()
         newlow, newhigh = np.inf, -np.inf
