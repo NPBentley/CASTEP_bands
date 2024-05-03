@@ -1047,7 +1047,9 @@ class Spectral:
                      color: 'str | list' = None,
                      headwidth: 'float | list' = None,
                      linewidth: 'float | list' = None,
-                     label: list = None,
+                     label_vbm: 'str | list' = None,
+                     label_cbm: 'str | list' = None,
+                     label_gap: 'str | list' = None,
                      do_arrow: bool = True,
                      dos: bool = False):
         """Mark the band gap on a bandstructure or DOS plot.
@@ -1065,8 +1067,12 @@ class Spectral:
             width of arrow head to use when marking the gap, if just float, same width used for both channels.
         linewidth : 'float | list'
             width of arrow used to mark the gap, if just float, same width used for both channels.
-        label : list
-            labels to use when marking the gap. If a single label is passed, only the first spin channel will be labelled.
+        label_vbm : 'str | list'
+            labels to use when marking the VBM. If a single label is passed, only the first spin channel will be labelled.
+        label_cbm : 'str | list'
+            label for CBM, cf. label_vbm
+        label_gap : 'str | list'
+            label for gap arrow cf. label_vbm
         do_arrow : bool
             add the arrow when marking the gap, otherwise, just indicate using points
         dos : bool
@@ -1083,7 +1089,7 @@ class Spectral:
         #     occ = 2
 
         # Decide which spins to plot
-        if spin_index is not None:
+        if spin_index is None:
             # If not spin index provided, then do all the spins
             spin_index = np.arange(self.nspins)
 
@@ -1124,33 +1130,40 @@ class Spectral:
         else:
             linewidth = [0.15, 0.15]
 
-        # Decide on label to use
-        if label is not None:
-            if isinstance(label, list):
-                if len(label) != len(spin_index):
-                    raise IndexError('You need to provide a label for each spin channel')
-            elif isinstance(label, str):
-                # A bit of a pain this one, copy the label provided by user and then note the spin channel we want to plot
-                tmpstr = label
-                if len(spin_index) == 1:
-                    # Create array for two spins initialised to none and then override appropriate spin index with actual label
-                    label = [None for ns in range(self.nspins)]
-                    label[spin_index[0]] = tmpstr
-                elif len(spin_index) == 2:
-                    # Assign label only for the first spin channel
-                    label = [tmpstr, None]
+        # Parse the user's label
+        def _format_label(label):
+            """Parse a label provided by the user"""
+            if label is not None:
+                if isinstance(label, list):
+                    if len(label) != len(spin_index):
+                        raise IndexError('You need to provide a label for each spin channel')
+                elif isinstance(label, str):
+                    # A bit of a pain this one, copy the label provided by user and then note the spin channel we want to plot
+                    tmpstr = label
+                    if len(spin_index) == 1:
+                        # Create array for two spins initialised to none and then override appropriate spin index with actual label
+                        label = [None for ns in range(self.nspins)]
+                        label[spin_index[0]] = tmpstr
+                    elif len(spin_index) == 2:
+                        # Assign label only for the first spin channel
+                        label = [tmpstr, None]
+                else:
+                    raise TypeError('label is not a list or string')
             else:
-                raise TypeError('label is not a list or string')
-        else:
-            label = [None, None]
+                label = [None, None]
+            return label
+
+        label_vbm = _format_label(label_vbm)
+        label_cbm = _format_label(label_cbm)
+        label_gap = _format_label(label_gap)
 
         # Get the valence band maximum and conduction band minimum for each spin.
         vbm_k, cbm_k, vbm_eig, cbm_eig = self.get_band_info(ret_vbm_cbm=True)
 
         def _mark_gap_bs(ns: int, do_arrow: bool = True):
             """Helper function to mark the gap on a bandstructure for a given spin"""
-            ax.scatter(vbm_k[ns], vbm_eig[ns], color=color[ns], label=label[ns])
-            ax.scatter(cbm_k[ns], cbm_eig[ns], color=color[ns], label=label[ns])
+            ax.scatter(vbm_k[ns], vbm_eig[ns], color=color[ns], label=label_vbm[ns])
+            ax.scatter(cbm_k[ns], cbm_eig[ns], color=color[ns], label=label_cbm[ns])
             if do_arrow is True:
                 ax.arrow(vbm_k[ns], vbm_eig[ns],
                          cbm_k[ns] - vbm_k[ns], cbm_eig[ns] - vbm_eig[ns],
@@ -1158,7 +1171,8 @@ class Spectral:
                          head_width=headwidth[ns],
                          color=color[ns],
                          length_includes_head=True,
-                         zorder=50000  # HACK Set this really high and hope this lies on top of everything.
+                         zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                         label=label_gap[ns]
                          )
 
         # Now mark the gap
