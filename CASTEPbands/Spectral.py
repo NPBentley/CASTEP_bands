@@ -4,6 +4,9 @@ The main module that handles the reading of CASTEP band strucutres.
 All the relevant band structure data is stored in the Spectral class and manipulations
 are largely done using the methods contained therein.
 """
+# Created by: Z Hawkhead, 22/03/2023
+# Contributors: N. P. Bentley, V. Ravindran
+
 import time
 import warnings
 from itertools import cycle
