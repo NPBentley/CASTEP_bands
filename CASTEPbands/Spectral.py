@@ -568,6 +568,7 @@ class Spectral:
 
         # Get a summary of the band structure instead, start with the bits we already have in the class
         band_info = {'nelec': None, 'nbands': None, 'nspins': self.nspins, 'nkpts': self.n_kpoints,
+                     'have_ncm': self.have_ncm,
                      'gap_indir': None, 'gap_dir': None, 'loc_indir': None, 'loc_dir': None,
                      'fermi': self.Ef, 'vb_width': None, 'cb_width': None, 'eng_unit': None}
 
@@ -638,8 +639,17 @@ class Spectral:
 
         # Write out the data in a pretty format
         # Really we should be using f-strings for this but on the off chance someone has an older version of Python...
+        # Added spin treatment 03/05/2024
+        if self.nspins == 2:
+            spin_treatment = 'collinear'
+        elif self.have_ncm is True:
+            spin_treatment = 'non-collinear'
+        else:
+            spin_treatment = 'spin-degenerate'
+
         if silent is False:
-            print('Number of spins:     ', self.nspins)
+            print('Spin treatment:      ', spin_treatment)
+            # print('Number of spins:     ', self.nspins)  # Replaced with spin_treatment 03/05/2024
             print('Number of k-points:  ', self.n_kpoints)
             print('Fermi Energy:        {:.6f} {}'.format(self.Ef, eng_unit))
 
