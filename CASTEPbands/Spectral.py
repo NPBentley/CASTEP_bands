@@ -1041,9 +1041,9 @@ class Spectral:
 
     def mark_bandgap(self, ax: matplotlib.axes,
                      spin_index: 'int | list' = None,
-                     mark_gap_color: 'str | list' = None,
-                     mark_gap_headwidth: 'float | list' = None,
-                     mark_gap_linewidth: 'float | list' = None,
+                     color: 'str | list' = None,
+                     headwidth: 'float | list' = None,
+                     linewidth: 'float | list' = None,
                      label: list = None,
                      do_arrow: bool = True,
                      dos: bool = False):
@@ -1055,12 +1055,12 @@ class Spectral:
             axes to mark the gap on
         spin_index : 'int | list'
             mark the gap for the specified spin channels. If none, all spin channels will be marked.
-        mark_gap_color : 'str | list'
+        color : 'str | list'
             colour to use when marking the gap for each spin channel.
             If just a string is passed, the same colour will be used for both channels.
-        mark_gap_headwidth : 'float | list'
+        headwidth : 'float | list'
             width of arrow head to use when marking the gap, if just float, same width used for both channels.
-        mark_gap_linewidth : 'float | list'
+        linewidth : 'float | list'
             width of arrow used to mark the gap, if just float, same width used for both channels.
         label : list
             labels to use when marking the gap. If a single label is passed, only the first spin channel will be labelled.
@@ -1085,41 +1085,41 @@ class Spectral:
             spin_index = np.arange(self.nspins)
 
         # Now decide on aesthetics
-        if mark_gap_color is not None:
-            if isinstance(mark_gap_color, list):
-                if len(mark_gap_color) != len(spin_index):
+        if color is not None:
+            if isinstance(color, list):
+                if len(color) != len(spin_index):
                     raise IndexError('You need to provide a colour for each spin channel')
-            elif isinstance(mark_gap_color, str):
-                col = mark_gap_color
-                mark_gap_color = [col, col]
+            elif isinstance(color, str):
+                col = color
+                color = [col, col]
             else:
-                raise TypeError('mark_gap_color not string or list.')
+                raise TypeError('color not string or list.')
         else:
-            mark_gap_color = ['red', 'blue']
+            color = ['red', 'blue']
 
-        if mark_gap_headwidth is not None:
-            if isinstance(mark_gap_headwidth, list):
-                if len(mark_gap_headwidth) != len(spin_index):
+        if headwidth is not None:
+            if isinstance(headwidth, list):
+                if len(headwidth) != len(spin_index):
                     raise IndexError('You need to provide a headwidth for each spin channel')
-            elif isinstance(mark_gap_headwidth, float):
-                arrw = mark_gap_headwidth
-                mark_gap_headwidth = [arrw, arrw]
+            elif isinstance(headwidth, float):
+                arrw = headwidth
+                headwidth = [arrw, arrw]
             else:
-                raise TypeError('mark_gap_headwidth not a float or list.')
+                raise TypeError('headwidth not a float or list.')
         else:
-            mark_gap_headwidth = [0.75, 0.75]
+            headwidth = [0.75, 0.75]
 
-        if mark_gap_linewidth is not None:
-            if isinstance(mark_gap_linewidth, list):
-                if len(mark_gap_linewidth) != len(spin_index):
+        if linewidth is not None:
+            if isinstance(linewidth, list):
+                if len(linewidth) != len(spin_index):
                     raise IndexError('You need to provide a linewidth for each spin channel')
-            elif isinstance(mark_gap_linewidth, float):
-                lw = mark_gap_linewidth
-                mark_gap_linewidth = [lw, lw]
+            elif isinstance(linewidth, float):
+                lw = linewidth
+                linewidth = [lw, lw]
             else:
-                raise TypeError('mark_gap_linewidth not a string or list.')
+                raise TypeError('linewidth not a string or list.')
         else:
-            mark_gap_linewidth = [0.15, 0.15]
+            linewidth = [0.15, 0.15]
 
         # Decide on label to use
         if label is not None:
@@ -1146,14 +1146,14 @@ class Spectral:
 
         def _mark_gap_bs(ns: int, do_arrow: bool = True):
             """Helper function to mark the gap on a bandstructure for a given spin"""
-            ax.scatter(vbm_k[ns], vbm_eig[ns], color=mark_gap_color[ns], label=label[ns])
-            ax.scatter(cbm_k[ns], cbm_eig[ns], color=mark_gap_color[ns], label=label[ns])
+            ax.scatter(vbm_k[ns], vbm_eig[ns], color=color[ns], label=label[ns])
+            ax.scatter(cbm_k[ns], cbm_eig[ns], color=color[ns], label=label[ns])
             if do_arrow is True:
                 ax.arrow(vbm_k[ns], vbm_eig[ns],
                          cbm_k[ns] - vbm_k[ns], cbm_eig[ns] - vbm_eig[ns],
-                         width=mark_gap_linewidth[ns],
-                         head_width=mark_gap_headwidth[ns],
-                         color=mark_gap_color[ns],
+                         width=linewidth[ns],
+                         head_width=headwidth[ns],
+                         color=color[ns],
                          length_includes_head=True,
                          zorder=50000  # HACK Set this really high and hope this lies on top of everything.
                          )
@@ -1676,9 +1676,9 @@ class Spectral:
         if mark_gap is True:
             # Moved to its own method V Ravindran 03/05/2024
             self.mark_bandgap(ax,
-                              mark_gap_color=mark_gap_color,
-                              mark_gap_headwidth=mark_gap_headwidth,
-                              mark_gap_linewidth=mark_gap_linewidth,
+                              color=mark_gap_color,
+                              headwidth=mark_gap_headwidth,
+                              linewidth=mark_gap_linewidth,
                               spin_index=spin_index,
                               do_arrow=True)
 
