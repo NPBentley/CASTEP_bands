@@ -4,6 +4,9 @@ This allows for the creation of more complicated plots.
 In general, the axes must already be created as a pre-requisitie for these functions.
 """
 # Created by: V. Ravindran, 22/04/2024
+import warnings
+from copy import deepcopy
+
 import matplotlib as mpl
 import numpy as np
 
@@ -176,5 +179,114 @@ def add_vb_cb(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
                     label=labels[1])
 
 
-def compare_bands():
-    raise NotImplementedError
+def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
+                band_id_ref: int or str = 'VBM', spin_index: int = 0,
+                force_align=False, silent=False):
+    """Shift the bands so that a given eigenvalue is the same in both band structures.
+
+    By default, a shift is not performed if the bandstructures do not have the same calculation
+    parameters, e.g. spins kpoints, etc. This behaviour can be disabled using force_align=True in
+    which case warnings will be raised (that can be surpressed by silent=False)
+
+    Parameters
+    ----------
+    spec : Spectral.Spectral
+        the actual bands data to shift
+    spec_ref : Spectral.Spectral
+        the reference bands data
+    band_id_ref : int or str
+        the band whose maximum eigenvalue will be used as the reference
+        Alternatively, aliases can be used for the 'VBM' (or 'HOMO') as well 'CBM' (or 'LUMO')
+    spin_index : int
+        spin channel to use (default : 0 / spin #1)
+    force_align : bool
+        force bands to be shifted even if they are not equivalent band structures
+    silent : bool
+        surpress warnings
+
+    Returns
+    -------
+    newspec : Spectral.Spectral
+        the shifted bands
+
+    Raises
+    ------
+    AssertionError
+        Bands are not equivalent
+    TypeError
+        invalid type for band_id_ref
+    IndexError
+        band index out of bounds in band_id_ref
+        spin_index out of bounds
+    ValueError
+        invalid band_id_ref string alias
+    """
+
+    if spin_index != 0 and spec_ref.nspins != 1:
+        raise IndexError('Reference band structure only has 1 spins but second spin channel requested')
+
+    def _get_max_eigenvalue(spec_ref: Spectral.Spectral, band_id_ref: int or str):
+        """Gets the maximum eigenvalue for a given band within the bandstructure"""
+        if isinstance(band_id_ref, str):
+            band_id_ref = band_id_ref.upper()
+
+            bandinfo = spec_ref.get_band_info(silent=True, band_order='C')
+
+            # Get VBM/CBM as required
+            if band_id_ref in ('VBM', 'HOMO'):
+                eig_ref = bandinfo['vbm'][spin_index]
+            elif band_id_ref in ('CBM', 'LUMO'):
+                eig_ref = bandinfo['cbm'][spin_index]
+            else:
+                raise ValueError(f'Unknown band label {band_id_ref}, '
+                                 + 'must be VBM/HOMO or CBM/LUMO')
+
+        elif isinstance(band_id_ref, int):
+            if band_id_ref >= spec_ref.BandStructure.shape[0]:
+                raise IndexError(f'Band index {band_id_ref} is out of bounds for '
+                                 + f'bandstructure with {spec_ref.BandStructure.shape[0]+1} bands.')
+
+            # Get maximum eigenvalue for the specified band
+            eig_ref = np.max(spec_ref.BandStructure[band_id_ref, :, spin_index])
+
+        else:
+            raise TypeError('band_id_ref must be str or int type')
+        return eig_ref
+
+    # Check if the two band structures are the same / comparable (except for eigenvalues themselves)
+    # This basically involves checking if the number of kpoints, paths, spins etc are the same.
+    def _warn_bs_mismatch(errmsg):
+        """Raises error/warning as appropriate if bands do not match"""
+        if force_align is False:
+            # Do not align bands if mismatch, raise error and halt
+            raise AssertionError(errmsg + ' Use force_align=False  to bypass')
+        if silent is False:
+            # Allow alignment but print a warning message unless silent
+            warnings.warn(errmsg + ' Use silent=True to surpress warnings')
+
+    if spec.BandStructure.shape != spec_ref.BandStructure.shape:
+        errmsg = f'Ref. bandstructure has (nk, nb, ns)={spec_ref.BandStructure.shape()}' + \
+            f' but actual has {spec.BandStructure.shape()}.'
+        _warn_bs_mismatch(errmsg)
+    elif spec.have_ncm != spec_ref.have_ncm:
+        errmsg = f'Ref. bandstructure have_ncm={spec_ref.have_ncm}' + \
+            f' but actual have_ncm={spec.have_ncm}.'
+        _warn_bs_mismatch(errmsg)
+    elif np.allclose(spec.kpoint_list, spec_ref.kpoint_list, atol=1e-10, rtol=1e-7) is False:
+        errmsg = 'Paths between reference and actual band structure do not appear to be the same.'
+        _warn_bs_mismatch(errmsg)
+
+    # Now let's get down to business.
+    # Get the reference eigenvalue.
+    eig_ref = _get_max_eigenvalue(spec_ref, band_id_ref)
+    eig_act = _get_max_eigenvalue(spec, band_id_ref)
+
+    # Make a (deep)copy of the spectral data -  this may cause problems!
+    # Without deep copy, the new class merely references the orignal so the original data is overriden.
+    newspec = deepcopy(spec)
+
+    # Shift the eigenvalues so that the reference eigenvalues align
+    eng_shift = eig_act - eig_ref
+    newspec.shift_bands(eng_shift)
+
+    return newspec
