@@ -57,6 +57,8 @@ class Spectral:
     ----------
     plot_bs
          Plots the band structure from the .bands file
+    mark_bandgap
+         Use the mark the band gap on a bandstructure or DOS plot.
     pdos_filter
          Function for separating the partial density of states by species,ion and angular momentum.
     plot_dos
@@ -1037,6 +1039,132 @@ class Spectral:
         gle_graph.write('\nend graph')
         gle_graph.close()
 
+    def mark_bandgap(self, ax: matplotlib.axes,
+                     spin_index: 'int | list' = None,
+                     mark_gap_color: 'str | list' = None,
+                     mark_gap_headwidth: 'float | list' = None,
+                     mark_gap_linewidth: 'float | list' = None,
+                     label: list = None,
+                     do_arrow: bool = True,
+                     dos: bool = False):
+        """Mark the band gap on a bandstructure or DOS plot.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes
+            axes to mark the gap on
+        spin_index : 'int | list'
+            mark the gap for the specified spin channels. If none, all spin channels will be marked.
+        mark_gap_color : 'str | list'
+            colour to use when marking the gap for each spin channel.
+            If just a string is passed, the same colour will be used for both channels.
+        mark_gap_headwidth : 'float | list'
+            width of arrow head to use when marking the gap, if just float, same width used for both channels.
+        mark_gap_linewidth : 'float | list'
+            width of arrow used to mark the gap, if just float, same width used for both channels.
+        label : list
+            labels to use when marking the gap. If a single label is passed, only the first spin channel will be labelled.
+        do_arrow : bool
+            add the arrow when marking the gap, otherwise, just indicate using points
+        dos : bool
+            marking on a DOS plot rather than a bandstructure
+        """
+
+        # Get number of electrons in each spin channel
+        # Taken from the class now V Ravindran 02/05/2024
+        # if self.nspins == 2:
+        #     nelec = np.array([self.nup, self.ndown], dtype=int)
+        #     occ = 1
+        # else:
+        #     nelec = np.array([self.electrons], dtype=int)
+        #     occ = 2
+
+        # Decide which spins to plot
+        if spin_index is not None:
+            # If not spin index provided, then do all the spins
+            spin_index = np.arange(self.nspins)
+
+        # Now decide on aesthetics
+        if mark_gap_color is not None:
+            if isinstance(mark_gap_color, list):
+                if len(mark_gap_color) != len(spin_index):
+                    raise IndexError('You need to provide a colour for each spin channel')
+            elif isinstance(mark_gap_color, str):
+                col = mark_gap_color
+                mark_gap_color = [col, col]
+            else:
+                raise TypeError('mark_gap_color not string or list.')
+        else:
+            mark_gap_color = ['red', 'blue']
+
+        if mark_gap_headwidth is not None:
+            if isinstance(mark_gap_headwidth, list):
+                if len(mark_gap_headwidth) != len(spin_index):
+                    raise IndexError('You need to provide a headwidth for each spin channel')
+            elif isinstance(mark_gap_headwidth, float):
+                arrw = mark_gap_headwidth
+                mark_gap_headwidth = [arrw, arrw]
+            else:
+                raise TypeError('mark_gap_headwidth not a float or list.')
+        else:
+            mark_gap_headwidth = [0.75, 0.75]
+
+        if mark_gap_linewidth is not None:
+            if isinstance(mark_gap_linewidth, list):
+                if len(mark_gap_linewidth) != len(spin_index):
+                    raise IndexError('You need to provide a linewidth for each spin channel')
+            elif isinstance(mark_gap_linewidth, float):
+                lw = mark_gap_linewidth
+                mark_gap_linewidth = [lw, lw]
+            else:
+                raise TypeError('mark_gap_linewidth not a string or list.')
+        else:
+            mark_gap_linewidth = [0.15, 0.15]
+
+        # Decide on label to use
+        if label is not None:
+            if isinstance(label, list):
+                if len(label) != len(spin_index):
+                    raise IndexError('You need to provide a label for each spin channel')
+            elif isinstance(label, str):
+                # A bit of a pain this one, copy the label provided by user and then note the spin channel we want to plot
+                tmpstr = label
+                if len(spin_index) == 1:
+                    # Create array for two spins initialised to none and then override appropriate spin index with actual label
+                    label = [None for ns in range(self.nspins)]
+                    label[spin_index[0]] = tmpstr
+                elif len(spin_index) == 2:
+                    # Assign label only for the first spin channel
+                    label = [tmpstr, None]
+            else:
+                raise TypeError('label is not a list or string')
+        else:
+            label = [None, None]
+
+        # Get the valence band maximum and conduction band minimum for each spin.
+        vbm_k, cbm_k, vbm_eig, cbm_eig = self.get_band_info(ret_vbm_cbm=True)
+
+        def _mark_gap_bs(ns: int, do_arrow: bool = True):
+            """Helper function to mark the gap on a bandstructure for a given spin"""
+            ax.scatter(vbm_k[ns], vbm_eig[ns], color=mark_gap_color[ns], label=label[ns])
+            ax.scatter(cbm_k[ns], cbm_eig[ns], color=mark_gap_color[ns], label=label[ns])
+            if do_arrow is True:
+                ax.arrow(vbm_k[ns], vbm_eig[ns],
+                         cbm_k[ns] - vbm_k[ns], cbm_eig[ns] - vbm_eig[ns],
+                         width=mark_gap_linewidth[ns],
+                         head_width=mark_gap_headwidth[ns],
+                         color=mark_gap_color[ns],
+                         length_includes_head=True,
+                         zorder=50000  # HACK Set this really high and hope this lies on top of everything.
+                         )
+
+        # Now mark the gap
+        if dos is True:
+            raise NotImplementedError('Marking of gap not implemented for density of states')
+        else:
+            for ns in spin_index:
+                _mark_gap_bs(ns, do_arrow=do_arrow)
+
     def plot_bs(self,
                 ax,
                 mono=False,
@@ -1546,68 +1674,13 @@ class Spectral:
 
         # Mark the band gap on the plot V Ravindran 31/04/2024
         if mark_gap is True:
-            vbm_i, cbm_i, *_ = self.get_band_info(ret_vbm_cbm=True)
-            # Get number of electrons in each spin channel
-            if self.spin_polarised is True:
-                nelec = np.array([self.nup, self.ndown], dtype=int)
-                # occ = 1 # Take it from the class V Ravindran 02/05/2024
-            else:
-                nelec = np.array([self.electrons], dtype=int)
-                # occ = 2  # Take it from the class V Ravindran 02/05/2024
-
-            # Now decide on aesthetics
-            if mark_gap_color is not None:
-                if isinstance(mark_gap_color, list):
-                    if len(mark_gap_color) != len(spin_index):
-                        raise IndexError('You need to provide a colour for each spin channel')
-                elif isinstance(mark_gap_color, str):
-                    col = mark_gap_color
-                    mark_gap_color = [col, col]
-                else:
-                    raise TypeError('mark_gap_color not string or list.')
-            else:
-                mark_gap_color = ['red', 'blue']
-
-            if mark_gap_headwidth is not None:
-                if isinstance(mark_gap_headwidth, list):
-                    if len(mark_gap_headwidth) != len(spin_index):
-                        raise IndexError('You need to provide a headwidth for each spin channel')
-                elif isinstance(mark_gap_headwidth, float):
-                    arrw = mark_gap_headwidth
-                    mark_gap_headwidth = [arrw, arrw]
-                else:
-                    raise TypeError('mark_gap_headwidth not a float or list.')
-            else:
-                mark_gap_headwidth = [0.75, 0.75]
-
-            if mark_gap_linewidth is not None:
-                if isinstance(mark_gap_linewidth, list):
-                    if len(mark_gap_linewidth) != len(spin_index):
-                        raise IndexError('You need to provide a linewidth for each spin channel')
-                elif isinstance(mark_gap_linewidth, float):
-                    lw = mark_gap_linewidth
-                    mark_gap_linewidth = [lw, lw]
-                else:
-                    raise TypeError('mark_gap_linewidth not a string or list.')
-            else:
-                mark_gap_linewidth = [0.15, 0.15]
-
-            # Finally, mark the gaps
-            for ns in spin_index:
-                vb_eigs = self.BandStructure[int(nelec[ns] / self.occ) - 1, :, ns]
-                cb_eigs = self.BandStructure[int(nelec[ns] / self.occ), :, ns]
-
-                vbm_k, vbm_eng = self.kpoints[vbm_i[ns]], vb_eigs[vbm_i[ns]]
-                cbm_k, cbm_eng = self.kpoints[cbm_i[ns]], cb_eigs[cbm_i[ns]]
-                ax.scatter(vbm_k, vbm_eng, color=mark_gap_color[ns])
-                ax.scatter(cbm_k, cbm_eng, color=mark_gap_color[ns])
-                ax.arrow(vbm_k, vbm_eng, cbm_k - vbm_k, cbm_eng - vbm_eng,
-                         width=mark_gap_linewidth[ns],
-                         head_width=mark_gap_headwidth[ns],
-                         color=mark_gap_color[ns],
-                         length_includes_head=True,
-                         zorder=50000  # HACK Set this really high and hope this lies on top of everything.
-                         )
+            # Moved to its own method V Ravindran 03/05/2024
+            self.mark_bandgap(ax,
+                              mark_gap_color=mark_gap_color,
+                              mark_gap_headwidth=mark_gap_headwidth,
+                              mark_gap_linewidth=mark_gap_linewidth,
+                              spin_index=spin_index,
+                              do_arrow=True)
 
         return
 
