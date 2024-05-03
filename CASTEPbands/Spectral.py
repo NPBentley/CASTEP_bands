@@ -45,6 +45,10 @@ class Spectral:
          Convert eigenvalues from atomic units (Hartrees) to electronvolts
     flip_spins : boolean
          Swap the spin channels when making the plot (Default : True)
+    have_ncm : boolean
+         Band structure is from non-collinear calculation.
+         This basically instructs overrides double occupancy despites nspins=1 as from
+        .bands file alone, non-collinear magnetism alone cannot be inferred (default: False)
     high_sym_spacegroup
          Get the high-symmetry points from the space group rather than just the
           geometry/lattice parameters of the computational cell (Default : True)
@@ -72,6 +76,7 @@ class Spectral:
                  zero_shift=None,
                  convert_to_eV=True,
                  flip_spins=False,
+                 have_ncm=False,
                  high_sym_spacegroup=True):
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
         self.start_time = time.time()
@@ -107,6 +112,7 @@ class Spectral:
         self.zero_vbm = zero_vbm
         self.zero_cbm = zero_cbm
         self.use_vbm_fermi = use_vbm_fermi
+        self.have_ncm = have_ncm
 
         # First we try to open the file
 
@@ -154,6 +160,17 @@ class Spectral:
         self.eig_up = no_eigen
         self.eig_down = no_eigen_2
         self.n_kpoints = no_kpoints
+
+        # Set occupancies - used to be in get_band_info only, now moved here V Ravindran 02/05/2024
+        # NB: These aren't the actual occupancies, in a solid fractional occupancies are possible in e.g. metals
+        # For plotting purposes, using integer occupancies will suffice.
+        if no_spins == 2 or have_ncm is True:
+            # Non collinear has bands at each spin component so the number of bands is doubled
+            # Spin polarised likewise has two spin channels
+            self.occ = 1
+        else:
+            # If not spin polarised, then we are doubly occupying levels
+            self.occ = 2
 
         band_structure = np.zeros((max_eig, no_kpoints, no_spins))  # bands, kpt, spin
 
@@ -561,20 +578,13 @@ class Spectral:
             nelecs[0] = self.electrons
             nbands[0] = self.eig_up
 
-        # Set occupancies
-        # TODO MAKE THIS A FUNCTION - for non-collinear, we have twice the number of bands as there are two spinor components although only one spin
-        occ = 1
-        if (self.nspins == 1):
-            # If not spin polarised, then we are doubly occupying levels
-            occ = 2
-
         # Vectorised operations V Ravindran 01/05/2024
         # Get valence and conduction bands for each spin
         vb_eigs = np.empty((self.nspins, self.n_kpoints))
         cb_eigs = np.empty((self.nspins, self.n_kpoints))
         for ns in range(self.nspins):
-            vb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ) - 1, :, ns]
-            cb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ), :, ns]
+            vb_eigs[ns] = self.BandStructure[int(nelecs[ns] / self.occ) - 1, :, ns]
+            cb_eigs[ns] = self.BandStructure[int(nelecs[ns] / self.occ), :, ns]
 
         # Determine valence band maximum and conduction band minimum to get (indirect) gap
         # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
@@ -1537,13 +1547,13 @@ class Spectral:
         # Mark the band gap on the plot V Ravindran 31/04/2024
         if mark_gap is True:
             vbm_i, cbm_i, *_ = self.get_band_info(ret_vbm_cbm=True)
-            # Decide on occupancies for each band depending on spin polarised or not
+            # Get number of electrons in each spin channel
             if self.spin_polarised is True:
                 nelec = np.array([self.nup, self.ndown], dtype=int)
-                occ = 1
+                # occ = 1 # Take it from the class V Ravindran 02/05/2024
             else:
                 nelec = np.array([self.electrons], dtype=int)
-                occ = 2
+                # occ = 2  # Take it from the class V Ravindran 02/05/2024
 
             # Now decide on aesthetics
             if mark_gap_color is not None:
@@ -1584,8 +1594,8 @@ class Spectral:
 
             # Finally, mark the gaps
             for ns in spin_index:
-                vb_eigs = self.BandStructure[int(nelec[ns] / occ) - 1, :, ns]
-                cb_eigs = self.BandStructure[int(nelec[ns] / occ), :, ns]
+                vb_eigs = self.BandStructure[int(nelec[ns] / self.occ) - 1, :, ns]
+                cb_eigs = self.BandStructure[int(nelec[ns] / self.occ), :, ns]
 
                 vbm_k, vbm_eng = self.kpoints[vbm_i[ns]], vb_eigs[vbm_i[ns]]
                 cbm_k, cbm_eng = self.kpoints[cbm_i[ns]], cb_eigs[cbm_i[ns]]
