@@ -1,0 +1,25 @@
+symmetry_generate
+kpoints_mp_grid 4 4 4
+
+%block lattice_cart
+1.812622409659552    0.000000000000000    5.126870390403877
+-0.906311204829776    1.569777054234136    5.126870390403877
+-0.906311204829776    -1.569777054234136    5.126870390403877
+%endblock lattice_cart
+
+%block positions_frac
+Mn  0.00  0.00  0.00  spin=-4.8
+Mn  0.50  0.50  0.50  spin=+4.8
+O   0.25  0.25  0.25
+O   0.75  0.75  0.75
+%endblock positions_frac
+
+%block spectral_kpoint_path
+K
+G
+X
+W
+%endblock spectral_kpoint_path
+
+! Measure spin along Z
+quantisation_axis 0 0 1

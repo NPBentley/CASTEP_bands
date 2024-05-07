@@ -1,5 +1,3 @@
-import os
-import sys
 import time
 import warnings
 from itertools import cycle
@@ -26,6 +24,9 @@ class Spectral:
     -----------
     seed : string
          The seedname of the CASTEP run, e.g.  <seedname>.bands.
+    use_vbm_fermi : boolean
+         Use the valence band maximum (VBM) as the Fermi energy.
+         This is particularly useful for instulators (default : False)
     zero_fermi : boolean
          Should the eigenvalues be shifted such that the Fermi energy is at the zero of energy (Default : True)
     zero_vbm : boolean
@@ -56,6 +57,7 @@ class Spectral:
     def __init__(self,
                  seed,
                  zero_fermi=True,
+                 use_vbm_fermi=False,
                  zero_vbm=False,
                  zero_cbm=False,
                  zero_shift=None,
@@ -94,12 +96,13 @@ class Spectral:
         self.zero_fermi = zero_fermi
         self.zero_vbm = zero_vbm
         self.zero_cbm = zero_cbm
+        self.use_vbm_fermi = use_vbm_fermi
 
         # First we try to open the file
 
         # Open the bands file
         try:
-            bands_file = seed+".bands"
+            bands_file = seed + ".bands"
             bands = open(bands_file, 'r')
         except:
             raise FileNotFoundError("No .bands file")
@@ -127,13 +130,13 @@ class Spectral:
 
         # Set all of the bands information
         self.spin_polarised = spin_polarised
-        self.Ef = fermi_energy*eV
+        self.Ef = fermi_energy * eV
         # NB: Shifting of Fermi energy is done once we decide on energy shift for the eigenvalues later - V Ravindran 31/01/2024
         self.n_kpoints = no_kpoints
         if spin_polarised:
             self.nup = n_up
             self.ndown = n_down
-            self.electrons = n_up+n_down
+            self.electrons = n_up + n_down
         else:
             self.nup = None
             self.ndown = None
@@ -150,9 +153,9 @@ class Spectral:
         kpoint_list = []  # array of the kpoint vectors
 
         if no_spins == 1:
-            kpoint_string = lines[9::no_eigen+2]
+            kpoint_string = lines[9::no_eigen + 2]
         else:
-            kpoint_string = lines[9::no_eigen+3+no_eigen_2]
+            kpoint_string = lines[9::no_eigen + 3 + no_eigen_2]
         for i in range(len(kpoint_string)):
             kpt_weights[i] = float(kpoint_string[i].split()[-1])
 
@@ -169,23 +172,33 @@ class Spectral:
         # fill up the arrays
         for k in range(0, no_kpoints):
             if no_spins == 1:
-                ind = 9+k*no_eigen+2*(k+1)
-                band_structure[:, k, 0] = eV*np.array([float(i) for i in lines[ind:ind+no_eigen]])
+                ind = 9 + k * no_eigen + 2 * (k + 1)
+                band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
 
             if no_spins == 2:
-                ind = 9+k*(no_eigen+no_eigen_2+1)+2*(k+1)
-                band_structure[:, k, 0] = eV*np.array([float(i) for i in lines[ind:ind+no_eigen]])
-                band_structure[:, k, 1] = eV*np.array([float(i) for i in lines[ind+no_eigen+1:ind+no_eigen+1+no_eigen_2]])
+                ind = 9 + k * (no_eigen + no_eigen_2 + 1) + 2 * (k + 1)
+                band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
+                band_structure[:, k, 1] = eV * np.array([float(i) for i in lines[ind + no_eigen + 1:ind + no_eigen + 1 + no_eigen_2]])
+
+        # Get valence and conduction bands (for up spin if spin polarised)
+        if no_spins == 1:
+            vb_eigs = band_structure[int(no_electrons / 2) - 1, :, 0]
+            cb_eigs = band_structure[int(no_electrons / 2), :, 0]
+        else:
+            vb_eigs = band_structure[int(n_up) - 1, :, 0]
+            cb_eigs = band_structure[int(n_up), :, 0]
+
+        # Decide if we now want to keep the CASTEP Fermi energy or use the VBM - V Ravindran 30/04/2024
+        if use_vbm_fermi is True:
+            fermi_energy = np.amax(vb_eigs) / eV
+            # Eigenvalues are already in the appropriate unit but Fermi energy was not converted initially
+            # Path of least resistance is to convert to Hartrees and then convert to eV again rather than changing the
+            # rest of the code.
+            # TODO If I can be bothered, I might actually refactor this initialisation bit it in the future...
+            self.Ef = fermi_energy * eV
 
         # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
         # NB: For zero_cbm and zero_vbm, we take the VBM/CBM from the first spin channel if spin polarised (arbitrarily).
-        if no_spins == 1:
-            vb_eigs = band_structure[int(no_electrons/2)-1, :, 0]
-            cb_eigs = band_structure[int(no_electrons/2), :, 0]
-        else:
-            vb_eigs = band_structure[int(n_up)-1, :, 0]
-            cb_eigs = band_structure[int(n_up), :, 0]
-
         # The error handling for this is a bit of a pain in the arse for this one...
         # In order of preference(highest to lowest): zero_vbm,zero_shift,zero_cbm,zero_fermi (since it's default)
         if zero_vbm is True:
@@ -196,18 +209,19 @@ class Spectral:
             eng_shift = float(zero_shift)
             if convert_to_eV is False:
                 # NB: User specifies shift in eV so convert to Hartrees.
-                eng_shift = eng_shift/eV
+                eng_shift = eng_shift / eV
         elif zero_fermi is True:
             # Since this is a default, to minimise number of kwargs user has to use in class,
             # this needs to be far down as possible
-            eng_shift = fermi_energy*eV
+            eng_shift = fermi_energy * eV
         else:
             eng_shift = 0.0
 
         # Now perform the shift for real
-        for k in range(no_kpoints):
-            for ns in range(no_spins):
-                band_structure[:, k, ns] = band_structure[:, k, ns] - eng_shift
+        # for k in range(no_kpoints):
+        #     for ns in range(no_spins):
+        #         band_structure[:, k, ns] = band_structure[:, k, ns] - eng_shift
+        band_structure = band_structure - eng_shift  # Vectorized shift V Ravindran 30/04/2024
 
         # Don't forget to shift the Fermi energy as well V Ravindran 31/01/2024
         self.Ef = self.Ef - eng_shift
@@ -240,13 +254,13 @@ class Spectral:
 
         kpoint_grad = []
         for i in range(1, len(kpoint_list)):
-            diff = kpoint_list[i]-kpoint_list[i-1]
+            diff = kpoint_list[i] - kpoint_list[i - 1]
             kpoint_grad.append(diff)
 
         kpoint_2grad = []
         high_sym = [0]
         for i in range(1, len(kpoint_grad)):
-            diff = kpoint_grad[i]-kpoint_grad[i-1]
+            diff = kpoint_grad[i] - kpoint_grad[i - 1]
             kpoint_2grad.append(diff)
             # print(diff)
 
@@ -254,24 +268,21 @@ class Spectral:
 
                 # print(diff)
                 high_sym.append(i)
-        high_sym.append(len(kpoint_list)-1)
-        high_sym = np.array(high_sym)+1
+        high_sym.append(len(kpoint_list) - 1)
+        high_sym = np.array(high_sym) + 1
         self.high_sym = high_sym
 
         # Set up the special points
-        warnings.filterwarnings("ignore")
-        # try:
-        # sys.stdout = open(os.devnull, 'w')
-
-        with open(os.devnull, "w") as devnull:
-            old_stdout = sys.stdout
-            sys.stdout = devnull
-            cell = io.read(seed+".cell")
-            bv_latt = cell.cell.get_bravais_lattice()
-            special_points = bv_latt.get_special_points()
-            sys.stdout = old_stdout
-
-        # sys.stdout = sys.__stdout__
+        # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
+        # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
+        # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
+        # CASTEP_COMMAND environmental variable is set                                                 V Ravindran CELL_READ 01/05/2024
+        cell = io.read(seed + ".cell",
+                       # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                       calculator_args={"keyword_tolerance": 3}
+                       )
+        bv_latt = cell.cell.get_bravais_lattice()
+        special_points = bv_latt.get_special_points()
 
         atoms = np.unique(cell.get_chemical_symbols())[::-1]
         mass = []
@@ -287,22 +298,22 @@ class Spectral:
         # sys.stdout = sys.__stdout__
         #    warnings.warn("No .cell file found for generating high symmetry labels")
 
-        ticks = [""]*len(high_sym)
+        ticks = [""] * len(high_sym)
         found = False
-        for k_count, k in enumerate(kpoint_list[high_sym-1]):
+        for k_count, k in enumerate(kpoint_list[high_sym - 1]):
             found = False
 
             for i in special_points:
 
-                if abs(special_points[i][0]-k[0]) < tol and abs(special_points[i][1]-k[1]) < tol and abs(special_points[i][2]-k[2]) < tol:
+                if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
                     if i == "G":
-                        ticks[k_count] = "$\Gamma$"
+                        ticks[k_count] = r"$\Gamma$"
                     else:
                         ticks[k_count] = i
                     found = True
 
         self.high_sym_labels = ticks
-        self.dk = np.sum((np.sum(kpoint_list, axis=0)/no_kpoints)**2)
+        self.dk = np.sum((np.sum(kpoint_list, axis=0) / no_kpoints)**2)
         # We have all the info now we can break it up
         # warnings.filterwarnings('always')
 
@@ -366,6 +377,9 @@ class Spectral:
         """Get a summary of the band structure.
 
         Author: V Ravindran (30/01/2024)
+
+        Updated: 01/05/2024 to use vectorised operations
+        Corrected ret_vbm_cbm to return vbms for each spin channel
 
         Parameters
         ----------
@@ -434,45 +448,48 @@ class Spectral:
             nelecs[0] = self.electrons
             nbands[0] = self.eig_up
 
-        vbm_i = np.empty(self.nspins, dtype=int)  # valence band maximum
-        cbm_i = np.empty(self.nspins, dtype=int)  # conduction band minimum
-        gap_in = np.empty(self.nspins)  # indirect gap
-        gap_dir = np.empty(self.nspins)  # direct gap
-        loc_in = np.empty((self.nspins, 2, 3))  # spin, VBM/CBM, coordinates
-        loc_dir = np.empty((self.nspins, 3))  # spin, coordinates
-        vb_width = np.empty(self.nspins)
-        cb_width = np.empty(self.nspins)
+        # Set occupancies
+        # TODO MAKE THIS A FUNCTION - for non-collinear, we have twice the number of bands as there are two spinor components although only one spin
+        occ = 1
+        if (self.nspins == 1):
+            # If not spin polarised, then we are doubly occupying levels
+            occ = 2
 
-        # Get gaps for each spin channel
+        # Vectorised operations V Ravindran 01/05/2024
+        # Get valence and conduction bands for each spin
+        vb_eigs = np.empty((self.nspins, self.n_kpoints))
+        cb_eigs = np.empty((self.nspins, self.n_kpoints))
         for ns in range(self.nspins):
-            occ = 1
-            if (self.nspins == 1):
-                # If not spin polarised, then we are doubly occupying levels
-                occ = 2
+            vb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ) - 1, :, ns]
+            cb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ), :, ns]
 
-            vb_eigs = self.BandStructure[int(nelecs[ns]/occ) - 1, :, ns]
-            cb_eigs = self.BandStructure[int(nelecs[ns]/occ), :, ns]
+        # Determine valence band maximum and conduction band minimum to get (indirect) gap
+        # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
+        vbm_i = np.argmax(vb_eigs, axis=1)  # valence band maximum kpt index
+        cbm_i = np.argmin(cb_eigs, axis=1)  # conduction band minimum kpt index
+        vbm_eig = np.max(vb_eigs, axis=1)
+        cbm_eig = np.min(cb_eigs, axis=1)
+        gap_in = cbm_eig - vbm_eig
 
-            # Determine valence band maximum and conduction band minimum to get direct gap
-            # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
-            vbm_i[ns], cbm_i[ns] = np.argmax(vb_eigs), np.argmin(cb_eigs)
-            gap_in[ns] = cb_eigs[cbm_i[ns]] - vb_eigs[vbm_i[ns]]
+        # At this point, decide if we just want to know where the VBM and CBM are
+        if ret_vbm_cbm is True:
+            return vbm_i, cbm_i, vbm_eig, cbm_eig
 
-            # Determine locations of the valence band minimum and conduction band maximum
+        # Determine locations of the valence band minimum and conduction band maximum
+        loc_in = np.empty((self.nspins, 2, 3))  # spin, VBM/CBM, coordinates
+        loc_dir = np.empty((self.nspins, 3))
+        gap_dir = np.empty(self.nspins)
+        for ns in range(self.nspins):
             loc_in[ns, 0, :] = self.kpoint_list[vbm_i[ns]]
             loc_in[ns, 1, :] = self.kpoint_list[cbm_i[ns]]
 
             # Now do the direct gap
-            gap_dir[ns] = cb_eigs[vbm_i[ns]] - vb_eigs[vbm_i[ns]]
+            gap_dir[ns] = cb_eigs[ns, vbm_i[ns]] - vb_eigs[ns, vbm_i[ns]]
             loc_dir[ns, :] = self.kpoint_list[vbm_i[ns]]
 
-            # Get the band widths
-            vb_width[ns] = np.max(vb_eigs) - np.min(vb_eigs)
-            cb_width[ns] = np.max(cb_eigs) - np.min(cb_eigs)
-
-        # At this point, decide if we just want to know where the VBM and CBM are
-        if ret_vbm_cbm is True:
-            return vbm_i, cbm_i, np.max(vb_eigs), np.min(cb_eigs)
+        # Get the band widths
+        vb_width = np.max(vb_eigs, axis=1) - np.min(vb_eigs, axis=1)
+        cb_width = np.max(cb_eigs, axis=1) - np.min(cb_eigs, axis=1)
 
         # Decide on the energy unit
         eng_unit = 'Hartrees'
@@ -481,6 +498,8 @@ class Spectral:
         # Now put everything into band_info
         band_info['nelec'] = nelecs
         band_info['nbands'] = nbands
+        band_info['vbm'] = vbm_eig
+        band_info['cbm'] = cbm_eig
         band_info['gap_indir'] = gap_in
         band_info['loc_indir'] = loc_in
         band_info['gap_dir'] = gap_dir
@@ -499,13 +518,15 @@ class Spectral:
             # Print information for each spin channel
             for ns in range(self.nspins):
                 if (self.nspins == 2):
-                    print('Spin Channel {}'.format(ns+1))
-                    print('-'*50)
+                    print('Spin Channel {}'.format(ns + 1))
+                    print('-' * 50)
 
                 print('No. of electrons: ', nelecs[ns])
                 print('No. of bands:     ', nbands[ns])
                 kx_vbm, ky_vbm, kz_vbm = loc_in[ns, 0, :]
                 kx_cbm, ky_cbm, kz_cbm = loc_in[ns, 1, :]
+                print(f'Valence band maximum    (VBM): {vbm_eig[ns]:.6f} {eng_unit}')
+                print(f'Conduction band maximum (CBM): {cbm_eig[ns]:.6f} {eng_unit}')
                 print('Indirect gap: {:.6f} {}  from {:.6f} {:.6f} {:.6f} --> {:.6f} {:.6f} {:.6f}'.format(
                     gap_in[ns], eng_unit,
                     kx_vbm, ky_vbm, kz_vbm,
@@ -521,20 +542,19 @@ class Spectral:
         return band_info
 
     def _pdos_read(self,
-                  species_only= False,
-                  popn_select = [None,None],
-                  species_and_orb = False,
-                  orb_breakdown = False):
-
+                   species_only=False,
+                   popn_select=[None, None],
+                   species_and_orb=False,
+                   orb_breakdown=False):
         ''' Internal function for reading the pdos_bin file. This contains all of the projected DOS from the Mulliken '''
-        #NPBentley: added species_and_orb, allowing for colour plotting by both species and orbital. 18/01/24
+        # NPBentley: added species_and_orb, allowing for colour plotting by both species and orbital. 18/01/24
 
-        #NPBentley: added the orb_breakdown function, with the aim of splitting the orbitals up into suborbitals.
+        # NPBentley: added the orb_breakdown function, with the aim of splitting the orbitals up into suborbitals.
         # This is not currently fully implemented or tested. 26/02/24
 
         from scipy.io import FortranFile as FF
 
-        f = FF(self.seed+'.pdos_bin', 'r', '>u4')
+        f = FF(self.seed + '.pdos_bin', 'r', '>u4')
         self.pdos_has_read = True
 
         version = f.read_reals('>f8')
@@ -556,26 +576,26 @@ class Spectral:
 
         kpoints = np.zeros((num_kpoints, 3))
         pdos_weights = np.zeros((num_popn_orb, max_eigenvalues, num_kpoints, num_spins))
-    
+
         pdos_orb_spec = np.zeros((num_species, 4, max_eigenvalues, num_kpoints, num_spins))
 
-        #NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
+        # NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
         # 4 corresponds to the
         if orb_breakdown:
             pdos_suborb_spec = np.zeros((num_species, 4, 7, max_eigenvalues, num_kpoints, num_spins))
 
-        #Read the pdos weights from the .pdos_bin file and read them into pdos_weights, before normalising the weights.
+        # Read the pdos weights from the .pdos_bin file and read them into pdos_weights, before normalising the weights.
         for nk in range(0, num_kpoints):
-            record = f.read_record('>i4','>3f8')
-            kpt_index,kpoints[nk, :] = record
+            record = f.read_record('>i4', '>3f8')
+            kpt_index, kpoints[nk, :] = record
             for ns in range(0, num_spins):
                 spin_index = f.read_ints('>u4')[0]
                 num_eigenvalues = f.read_ints('>u4')[0]
-    
+
                 for nb in range(0, num_eigenvalues):
                     pdos_weights[0:num_popn_orb, nb, nk, ns] = f.read_reals('>f8')
-                    norm=np.sum((pdos_weights[0:num_popn_orb, nb, nk, ns]))
-                    pdos_weights[0:num_popn_orb, nb, nk, ns]=pdos_weights[0:num_popn_orb, nb, nk, ns]/norm
+                    norm = np.sum((pdos_weights[0:num_popn_orb, nb, nk, ns]))
+                    pdos_weights[0:num_popn_orb, nb, nk, ns] = pdos_weights[0:num_popn_orb, nb, nk, ns] / norm
 
         pdos_orb_spec = np.zeros((num_species, 4, max_eigenvalues, num_kpoints, num_spins))
 
@@ -585,16 +605,15 @@ class Spectral:
                 for ns in range(num_spins):
                     pdos_weights[i, nb, :, ns] = pdos_weights[i, nb, :, ns][self.kpt_sort]
 
-
         # Return the raw weights - these are divided up into suborbitals as is laid out in the .castep file.
         self.raw_pdos = pdos_weights
 
         # reshape so we can work out which bands are which - this combines all of the suborbitals for a given species together
         for i in range(len(orbital_species)):
 
-            l_ind=orbital_l[i]
-            spec_ind=orbital_species[i]-1
-       
+            l_ind = orbital_l[i]
+            spec_ind = orbital_species[i] - 1
+
             pdos_orb_spec[spec_ind, l_ind, :, :, :] = pdos_orb_spec[spec_ind, l_ind, :, :, :] + pdos_weights[i, :, :, :]
 
         # Go through each kpoint, band and spin to find the species and orbital with highest occupancy.
@@ -603,33 +622,32 @@ class Spectral:
         for nk in range(num_kpoints):
             for nb in range(max_eigenvalues):
                 for ns in range(num_spins):
-                    max_spec,max_l=np.where(pdos_orb_spec[:, :, nb, nk, ns]==np.max(pdos_orb_spec[:, :, nb, nk, ns]))
-       
-                    pdos_orb_spec[:, :, nb, nk, ns]=0
-                    pdos_orb_spec[max_spec[0], max_l[0], nb, nk, ns]=1
+                    max_spec, max_l = np.where(pdos_orb_spec[:, :, nb, nk, ns] == np.max(pdos_orb_spec[:, :, nb, nk, ns]))
 
-        #Sum over all the kpoints of pdos_orb_spec, in order to give the weights for the given band
-        #across the chosen k-point path.
-        pdos_bands=np.sum(pdos_orb_spec, axis=3)
+                    pdos_orb_spec[:, :, nb, nk, ns] = 0
+                    pdos_orb_spec[max_spec[0], max_l[0], nb, nk, ns] = 1
 
+        # Sum over all the kpoints of pdos_orb_spec, in order to give the weights for the given band
+        # across the chosen k-point path.
+        pdos_bands = np.sum(pdos_orb_spec, axis=3)
 
-        #Define an array used to find which species orbital combination has the max weight for each
-        #band. Then associate this species orbital combination to the given band in the band_char array.
-        band_char=np.zeros((2, max_eigenvalues, num_spins))
+        # Define an array used to find which species orbital combination has the max weight for each
+        # band. Then associate this species orbital combination to the given band in the band_char array.
+        band_char = np.zeros((2, max_eigenvalues, num_spins))
 
         for nb in range(0, max_eigenvalues):
             for ns in range(0, num_spins):
-                max_spec, max_l=np.where(pdos_bands[:, :, nb, ns] == np.max(pdos_bands[:, :, nb, ns]))
-    
-                band_char[0, nb, ns] = max_spec[0]+1 #Define species
-                band_char[1, nb, ns] = max_l[0] #Define orbital
+                max_spec, max_l = np.where(pdos_bands[:, :, nb, ns] == np.max(pdos_bands[:, :, nb, ns]))
 
-        #Save the band_char array for when plotting by species and orbital.
+                band_char[0, nb, ns] = max_spec[0] + 1  # Define species
+                band_char[1, nb, ns] = max_l[0]  # Define orbital
+
+        # Save the band_char array for when plotting by species and orbital.
         if species_and_orb:
-            self.band_char=band_char
+            self.band_char = band_char
 
-        # Now filter based on user input                                                                                                                                  
-        popn_bands=np.zeros((max_eigenvalues,num_spins),dtype=bool)
+        # Now filter based on user input
+        popn_bands = np.zeros((max_eigenvalues, num_spins), dtype=bool)
         if popn_select[0] is not None:
             for nb in range(max_eigenvalues):
                 for ns in range(num_spins):
@@ -643,7 +661,7 @@ class Spectral:
             pdos_weights_sum = np.zeros((num_species, max_eigenvalues, num_kpoints, num_spins))
 
             for i in range(0, num_species):
-                loc = np.where(orbital_species == i+1)[0]
+                loc = np.where(orbital_species == i + 1)[0]
                 pdos_weights_sum[i, :, :, :] = np.sum(pdos_weights[loc, :, :, :], axis=0)
 
         else:
@@ -680,49 +698,45 @@ class Spectral:
                 if line.find("Orbital Populations") != -1:
                     orb_pop_index = castep_lines.index(line)
 
-            #print(orb_pop_index)
-            orb_info = castep_lines[orb_pop_index+4:orb_pop_index+4+len(orbital_species)]
+            # print(orb_pop_index)
+            orb_info = castep_lines[orb_pop_index + 4:orb_pop_index + 4 + len(orbital_species)]
             orb_mapping = {
-                    "S" : 0,
-                    "Px" : 0,
-                    "Py" : 1,
-                    "Pz" : 2,
-                    "Dzz": 0,
-                    "Dzy": 1,
-                    "Dzx": 2,
-                    "Dxx-yy": 3,
-                    "Dxy": 4,
-                    "Fxxx": 0,
-                    "Fyyy": 1,
-                    "Fzzz": 2,
-                    "Fxyz": 3,
-                    "Fz(xx-yy)": 4,
-                    "Fy(zz-xx)": 5,
-                    "Fx(yy-zz)": 6
+                "S": 0,
+                "Px": 0,
+                "Py": 1,
+                "Pz": 2,
+                "Dzz": 0,
+                "Dzy": 1,
+                "Dzx": 2,
+                "Dxx-yy": 3,
+                "Dxy": 4,
+                "Fxxx": 0,
+                "Fyyy": 1,
+                "Fzzz": 2,
+                "Fxyz": 3,
+                "Fz(xx-yy)": 4,
+                "Fy(zz-xx)": 5,
+                "Fx(yy-zz)": 6
             }
             for i in range(len(orbital_species)):
                 orb_lab = orb_info[i].split()[2]
                 suborb_list.append(orb_lab)
-                #print(orb_mapping.get(orb_lab))
+                # print(orb_mapping.get(orb_lab))
                 l_ind = orbital_l[i]
                 spec_ind = orbital_species[i] - 1
 
-                pdos_suborb_spec[spec_ind,l_ind,orb_mapping.get(orb_lab),:,:,:]=pdos_suborb_spec[spec_ind,l_ind,orb_mapping.get(orb_lab),:,:,:] \
-                                                                                + self.raw_pdos[i,:,:,:]
-            #NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array
-            #as has been done when the species_and_orb option is used. It would also be useful to integrate this in with the dos plotting, as it
-            #likely be more useful to plot suborbitals in dos plots rather than in bands. 26/02/24
-
-
-
-
+                pdos_suborb_spec[spec_ind, l_ind, orb_mapping.get(orb_lab), :, :, :] = pdos_suborb_spec[spec_ind, l_ind, orb_mapping.get(orb_lab), :, :, :] \
+                    + self.raw_pdos[i, :, :, :]
+            # NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array
+            # as has been done when the species_and_orb option is used. It would also be useful to integrate this in with the dos plotting, as it
+            # likely be more useful to plot suborbitals in dos plots rather than in bands. 26/02/24
 
     def _gradient_read(self):
         ''' Internal function for reading the gradient file .dome_bin. This is used in the calculation of the adaptive broadening. If using  cite Jonathan R. Yates, Xinjie Wang, David Vanderbilt, and Ivo Souza
         Phys. Rev. B 75, 195121 '''
         from scipy.io import FortranFile as FF
         try:
-            f = FF(self.seed+'.dome_bin', 'r', '>u4')
+            f = FF(self.seed + '.dome_bin', 'r', '>u4')
         except:
             raise Exception('Unable to read .dome_bin file, change broadening="gaussian" or "lorentzian".')
         version = f.read_reals('>f8')
@@ -736,14 +750,14 @@ class Spectral:
                 bands_grad[:, :, nk, ns] = f.read_reals('>f8').reshape(3, self.nbands)
 
         # Convert the gradients to eV
-        bands_grad = bands_grad*self.eV*0.52917720859
+        bands_grad = bands_grad * self.eV * 0.52917720859
         grad_bands_2 = np.sqrt(np.sum((bands_grad**2), axis=0))
 
         for nb in range(self.nbands):
             for ns in range(self.nspins):
                 grad_bands_2[nb, :, ns] = grad_bands_2[nb, :, ns][self.kpt_sort]
 
-        adaptive_weights = grad_bands_2*self.dk
+        adaptive_weights = grad_bands_2 * self.dk
 
         adaptive_weights[adaptive_weights < 1e-2] = 1e-2
 
@@ -768,10 +782,10 @@ class Spectral:
             orbital_l = orbital_l[mask2]
             orbital_ion = orbital_ion[mask2]
 
-        sn = self.low_n[species-1]
-        pn = self.low_n[species-1]
-        dn = self.low_n[species-1]
-        fn = self.low_n[species-1]
+        sn = self.low_n[species - 1]
+        pn = self.low_n[species - 1]
+        dn = self.low_n[species - 1]
+        fn = self.low_n[species - 1]
 
         si = 0
         pi = 0
@@ -786,11 +800,11 @@ class Spectral:
 
         for i in range(len(orbital_l)):
             if i > 0:
-                if orbital_ion[i] != orbital_ion[i-1]:
-                    sn = self.low_n[species-1]
-                    pn = self.low_n[species-1]
-                    dn = self.low_n[species-1]
-                    fn = self.low_n[species-1]
+                if orbital_ion[i] != orbital_ion[i - 1]:
+                    sn = self.low_n[species - 1]
+                    pn = self.low_n[species - 1]
+                    dn = self.low_n[species - 1]
+                    fn = self.low_n[species - 1]
 
                     si = 0
                     pi = 0
@@ -800,8 +814,8 @@ class Spectral:
             if orbital_l[i] == 0:
                 # s
                 if sn <= dn and di > 3:
-                    sn = dn+1
-                labels[i] = str(sn)+s[si]
+                    sn = dn + 1
+                labels[i] = str(sn) + s[si]
                 orbital_n.append(sn)
                 sn += 1
             elif orbital_l[i] == 1:
@@ -809,29 +823,29 @@ class Spectral:
                     pi = 0
                     pn += 1
                 if pn <= dn and di > 3:
-                    pn = dn+1
-                labels[i] = str(pn)+p[pi]
+                    pn = dn + 1
+                labels[i] = str(pn) + p[pi]
                 orbital_n.append(pn)
                 pi += 1
             elif orbital_l[i] == 2:
                 if di > 4:
                     di = 0
                     dn += 1
-                labels[i] = str(dn)+d[di]
+                labels[i] = str(dn) + d[di]
                 orbital_n.append(dn)
                 di += 1
             elif orbital_l[i] == 1:
                 if fi > 6:
                     fi = 0
                     fn += 1
-                labels[i] = str(fn)+f[fi]
+                labels[i] = str(fn) + f[fi]
                 orbital_n.append(fn)
                 fi += 1
 
         labels = labels
         return labels
 
-    def _plot_gle(self,spin_polarised=False,spin_index=[0],species_and_orb=False):
+    def _plot_gle(self, spin_polarised=False, spin_index=[0], species_and_orb=False):
         '''Function for getting data into a GLE readable format and producing the template for a gle input file so that it can be used to produce
         band structures.
         :param: spin_polarised: Indicate if the system is spin polarised or not.
@@ -860,7 +874,7 @@ class Spectral:
         gle_data = np.zeros((len(self.kpoints), self.nbands + 1))
         gle_data[:, 0] = self.kpoints
         gle_data[:, 1:] = np.swapaxes(self.BandStructure[:self.nbands, :, ns_gle], 0, 1)
-        np.savetxt(filename+".dat", gle_data)
+        np.savetxt(filename + ".dat", gle_data)
 
         gle_graph = open(filename + ".gle", "w")
         gle_graph.write('size 10 6')
@@ -885,7 +899,7 @@ class Spectral:
         gle_graph.write('\n   xticks off')
         gle_graph.write('\n   yaxis nticks 5 min -2 max 2')
         gle_graph.write('\n   ysubticks off')
-        gle_graph.write('\n   data "'+filename+'.dat"')
+        gle_graph.write('\n   data "' + filename + '.dat"')
         if not species_and_orb:
             gle_graph.write('\n   for alpha = 1 to ' + str(self.nbands))
             gle_graph.write('\n      d[alpha] line color ' + gle_color)
@@ -924,15 +938,19 @@ class Spectral:
                 klim=None,
                 axes_only=False,
                 pdos_species=False,
-                pdos_popn_select=[None,None],
+                pdos_popn_select=[None, None],
                 band_ids=None,
+                band_colors=None,
                 output_gle=False,
                 species_and_orb=False,
                 orb_breakdown=False,
                 mark_gap=False,
                 mark_gap_color=None,
                 mark_gap_headwidth=None,
-                mark_gap_linewidth=None):
+                mark_gap_linewidth=None,
+                band_labels=None,
+                legend_loc='best'
+                ):
         """Plot the band structure from a .bands file.
 
         Parameters
@@ -990,6 +1008,8 @@ class Spectral:
             population analysis
         band_ids : ndarray(dtype=int)
             plot only specific bands in the band structure.
+        band_colors : list(dtype=str)
+            colours to use when plotting the bands according to band_ids.
         output_gle : Boolean
             Produce the output ".dat" and ".gle" files for plotting bandstructures using GLE.
         species_and_orb : Boolean
@@ -1002,10 +1022,17 @@ class Spectral:
             mark the band gap on the plot
         mark_gap_color : string or list(dtype=string)
             colours to use when marking the band gap (list to specify for each spin channel)
+            (default : red for spin 1, blue for spin 2)
         mark_gap_headwidth : float or list(dtype=float)
             width of arrow head used to mark the gap. (list to specify for each spin channel)
+            (default : 0.75 for both spin channels)
         mark_gap_linewidth : float or list(dtype=float)
             width of arrow tail used to mark the gap. (list to specify for each spin channel)
+            (default : 0.15 for both spin channels)
+        band_labels : list(dtype=str)
+            labels for specific bands specified by bands_ids.
+        legend_loc : str or pair of floats
+            position of the legend for the plot if a legend is created (default: 'best')
 
         Raises
         ------
@@ -1064,11 +1091,12 @@ class Spectral:
             eng_label = r'E-E$_{\mathrm{VBM}}$'
         elif self.zero_cbm is True:
             eng_label = r'E-E$_{\mathrm{CBM}}$'
-        ax.set_ylabel(eng_label+f' ({eng_unit})', fontsize=fontsize)
+        ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize = fontsize)
 
         ax.set_xlim(1, len(self.kpoints))
-        ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize*0.8, length=12, width=1.2)
-        ax.tick_params(axis='both', which='minor', labelsize=fontsize*0.8, length=6, right=True, top=False, bottom=False, left=True, width=1.2)
+        ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
+        ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
+                       right=True, top=False, bottom=False, left=True, width=1.2)
         ax.set_xticks(self.high_sym)
         ax.set_xticklabels(self.high_sym_labels)
         ax.minorticks_on()
@@ -1089,7 +1117,7 @@ class Spectral:
                 # Using high-symmetry points to decide label
                 for n, label in enumerate(user_klim):
                     if label.strip() == 'G':
-                        label = '$\Gamma$'
+                        label = r'$\Gamma$'
                     indx = [i for i, pt in enumerate(self.high_sym_labels) if label == pt]
 
                     if len(indx) > 1:
@@ -1097,16 +1125,16 @@ class Spectral:
                         print('{} point appears more than once in band structure.'.format(label))
                         print('Path in calculation: ', end='')
                         for i, pt in enumerate(self.high_sym_labels):
-                            if pt == '$\Gamma$':
+                            if pt == r'$\Gamma$':
                                 pt = 'G'
-                            if i == len(self.high_sym_labels)-1:
+                            if i == len(self.high_sym_labels) - 1:
                                 print(pt)
                             else:
                                 print(pt, end='->')
 
                         print('Choose index from the following: ', end=' ')
                         for i, label_i in enumerate((indx)):
-                            print('{}: {}.kpt'.format(i, label_i+1), end='   ')
+                            print('{}: {}.kpt'.format(i, label_i + 1), end='   ')
                         indx = input('')
                         indx = int(indx)
                     elif len(indx) == 0:
@@ -1142,30 +1170,138 @@ class Spectral:
         if axes_only:
             return
 
+        def _setup_str_mask(user_strings, band_ids_mask):
+            """Setup a character array according to the bands mask.
+
+            The same convention is followed as above with regard to spin channels.
+            Author : V Ravindran, 12/04/2024
+            """
+            # Strip any whitespace.
+            user_strings = np.char.strip(np.array(user_strings))
+
+            # Get the bands to label - spins done in the loop below
+            do_bands_b = np.where(band_ids_mask)[0]
+            if band_ids_mask.ndim == 2:
+                # Decided to label for different bands in different spin channels
+                do_bands_s = np.where(band_ids_mask)[1]
+
+            assert len(user_strings) == do_bands_b.shape[0]
+
+            # Now set up the labels following the mask provided.
+            string_masked = np.empty(band_ids_mask.shape, dtype=user_strings.dtype)
+            for i in range(len(do_bands_b)):
+                nb = do_bands_b[i]
+                if band_ids_mask.ndim == 2:
+                    ns = do_bands_s[i]
+                    # A label was provided for different bands across different spins
+                    string_masked[nb, ns] = user_strings[i]
+                else:
+                    # Do the label only for a specific spin channel based on spin_index provided
+                    for do_spin in spin_index:
+                        string_masked[nb, do_spin] = user_strings[i]
+
+            return string_masked
+
+        def _check_user_input_str_mask(user_strings, band_ids, errstr):
+            """Check the user provided the appropriate format for strings.
+
+            This function should be called before actually getting the masked character array
+            using _setup_str_mask.
+            Author : V Ravindran, 14/04/2024
+            """
+            # Check the user provided band_ids.
+            # Although the local variable is band_ids_mask, this is initialised to
+            # true everywhere so we cannot actually mask the actual character array according to bands.
+            # Therefore, we have to make sure it is actually provided and check against the user's
+            # data, NOT the local copy.
+            errstr = errstr.strip()
+            if band_ids is None:
+                raise TypeError(
+                    f'You must supply bands to band_ids to indicate which bands to {errstr}'
+                )
+            elif np.array(user_strings).ndim != 1:
+                raise IndexError(
+                    f'Band {errstr}s should be a 1D array array with length of number of bands to act on.'
+                )
+            elif band_ids.shape[0] != len(user_strings):
+                raise IndexError(
+                    f'Number of bands {band_ids.shape[0]} does not match number of {errstr}s {len(user_strings)}.'
+                )
+
+        # Check if we want to use user-defined colours on a per-band-basis - band_colors V Ravindran 14/04/2024
+        if band_colors is not None:
+            # Check the user gave the data in the correct format/data structure.
+            # NB must check against user input not the local copy (band_ids_mask)
+            _check_user_input_str_mask(band_colors, band_ids, 'colour')
+
+            # Set up colours according to the band_ids_mask
+            band_colors = _setup_str_mask(band_colors, band_ids_mask)
+
+        # Check if we want to use custom labels for the bands - band_labels V Ravindran 12/04/2024
+        if band_labels is not None:
+            # Check the user gave the data in the correct format/data structure.
+            # NB must check against user input not the local copy (band_ids_mask)
+            _check_user_input_str_mask(band_labels, band_ids, 'label')
+
+            # Set up labels according to the band_ids_mask
+            band_labels = _setup_str_mask(band_labels, band_ids_mask)
+
         # Do the standard plotting, no pdos here
         if not pdos:
             # Here we plot all of the bands. We can provide a mechanism latter for plotting invididual ones
+
+            # Store the lines for each band in a list - band_labels V Ravindran 12/04/2024
+            # so we can add them to legend when labelling. -  band_labels V Ravindran 12/04/2024
+            custom_lines = []
+            l_labels = []  # local copy of band_labels as a list
             for nb in range(self.nbands):
                 for ns in spin_index:
 
                     if not band_ids_mask[nb, ns]:
+                        # If the band is not within the mask,
+                        # then do not plot it and skip to the next band.
                         continue
                         # Mono
-                    if mono:
-                        ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth, color=mono_color)
 
+                    # Updated colour selection V Ravindran 14/04/2024
+                    line_color = ''
+                    if mono:
+                        line_color = mono_color
+                    elif band_colors is not None:
+                        line_color = band_colors[nb, ns]
                     elif spin_polarised:
-                        ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth, color=spin_colors[ns])
-                                               
+                        line_color = spin_colors[ns]
+
+                    if line_color == '':
+                        # No colour specified so let pick from rcParams
+                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth)
                     else:
-                        ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linestyle=linestyle, linewidth=linewidth)
+                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth, color=line_color)
+
+                    if band_labels is not None:  # band_labels V Ravindran 12/04/2024
+                        # V Ravindran: The check further up should have caught the fact that band_ids
+                        # needs to be supplied together with band_labels.
+                        # This *should* prevent every band from being labelled.
+                        # Thus only bands we want to label should be added.
+                        #
+                        # Unfortunately, it requires this routine to be called twice,
+                        # once for the overall band structure, and the second for the labels...
+                        custom_lines.append(line)
+                        l_labels.append(band_labels[nb, ns])
+
+            # Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
+            if band_labels is not None:
+                ax.legend(custom_lines, l_labels, loc=legend_loc)
+                # Return the lines and labels so the user can customise the legend how they wish
 
             if output_gle:
-                self._plot_gle(spin_polarised,spin_index)
+                self._plot_gle(spin_polarised, spin_index)
 
-        #now pdos is a thing
+        # now pdos is a thing
         else:
-            #calculate the pdos if needed
+            # calculate the pdos if needed
             self._pdos_read(pdos_species, pdos_popn_select, species_and_orb, orb_breakdown)
 
             # first do the plotting with the popn_select
@@ -1174,7 +1310,7 @@ class Spectral:
                     for ns in spin_index:
                         if not band_ids_mask[nb, ns]:
                             continue
-                
+
                         # Mono
                         if mono:
                             if self.popn_bands[nb, ns]:
@@ -1261,10 +1397,10 @@ class Spectral:
                         cmap_array = np.zeros((len(self.kpoints), 4))
                         for i in range(n_cat):
 
-                            cmap_array[:, 0] += self.pdos[i, nb, :, ns]*basis[i][0]  # /n_cat
-                            cmap_array[:, 1] += self.pdos[i, nb, :, ns]*basis[i][1]  # /n_cat
-                            cmap_array[:, 2] += self.pdos[i, nb, :, ns]*basis[i][2]  # /n_cat
-                            cmap_array[:, 3] += self.pdos[i, nb, :, ns]*basis[i][3]  # /n_cat
+                            cmap_array[:, 0] += self.pdos[i, nb, :, ns] * basis[i][0]  # /n_cat
+                            cmap_array[:, 1] += self.pdos[i, nb, :, ns] * basis[i][1]  # /n_cat
+                            cmap_array[:, 2] += self.pdos[i, nb, :, ns] * basis[i][2]  # /n_cat
+                            cmap_array[:, 3] += self.pdos[i, nb, :, ns] * basis[i][3]  # /n_cat
 
                             # cmap_array[:,0:3]=cmap_array[:,0:3]/n_cat
                             cmap_array = np.where(cmap_array > 1, 1, cmap_array)
@@ -1335,14 +1471,14 @@ class Spectral:
 
             # Finally, mark the gaps
             for ns in spin_index:
-                vb_eigs = self.BandStructure[int(nelec[ns]/occ)-1, :, ns]
-                cb_eigs = self.BandStructure[int(nelec[ns]/occ), :, ns]
+                vb_eigs = self.BandStructure[int(nelec[ns] / occ) - 1, :, ns]
+                cb_eigs = self.BandStructure[int(nelec[ns] / occ), :, ns]
 
                 vbm_k, vbm_eng = self.kpoints[vbm_i[ns]], vb_eigs[vbm_i[ns]]
                 cbm_k, cbm_eng = self.kpoints[cbm_i[ns]], cb_eigs[cbm_i[ns]]
                 ax.scatter(vbm_k, vbm_eng, color=mark_gap_color[ns])
                 ax.scatter(cbm_k, cbm_eng, color=mark_gap_color[ns])
-                ax.arrow(vbm_k, vbm_eng, cbm_k-vbm_k, cbm_eng-vbm_eng,
+                ax.arrow(vbm_k, vbm_eng, cbm_k - vbm_k, cbm_eng - vbm_eng,
                          width=mark_gap_linewidth[ns],
                          head_width=mark_gap_headwidth[ns],
                          color=mark_gap_color[ns],
@@ -1355,7 +1491,7 @@ class Spectral:
     def pdos_filter(self, species, l, ion=None):
         ''' Function for filtering the pdos for a particular species, ion and angular momentum'''
         ls = np.where(self.orbital_l == l)[0]
-        ss = np.where(self.orbital_species == species+1)[0]
+        ss = np.where(self.orbital_species == species + 1)[0]
 
         cross = np.intersect1d(ls, ss)
 
@@ -1415,33 +1551,33 @@ class Spectral:
                 return fd
             else:
                 K = 8.617333e-5
-                beta = 1/(K*T)
+                beta = 1 / (K * T)
 
-                return 1/(np.exp(beta*(E-self.Ef))+1)
+                return 1 / (np.exp(beta * (E - self.Ef)) + 1)
 
         def _gaussian(Ek, E, width):
-            dist = Ek-E
-            mask = np.where(np.abs(dist) < 5/self.eV)
+            dist = Ek - E
+            mask = np.where(np.abs(dist) < 5 / self.eV)
             result = np.zeros(np.shape(dist))
-            factor = 1/(width*np.sqrt(2*np.pi))
-            exponent = np.exp(-0.5*np.square(dist[mask]/(width)))
-            result[mask] = factor*exponent
+            factor = 1 / (width * np.sqrt(2 * np.pi))
+            exponent = np.exp(-0.5 * np.square(dist[mask] / (width)))
+            result[mask] = factor * exponent
             return result
 
         def _adaptve(Ek, E, width):
-            dist = Ek-E
-            mask = np.where(np.abs(dist) < 5/self.eV)
+            dist = Ek - E
+            mask = np.where(np.abs(dist) < 5 / self.eV)
             result = np.zeros(np.shape(dist))
-            factor = 1/(width*np.sqrt(2*np.pi))
-            exponent = np.exp(-0.5*np.square(dist[mask]/(width[mask])))
-            result[mask] = factor*exponent
+            factor = 1 / (width * np.sqrt(2 * np.pi))
+            exponent = np.exp(-0.5 * np.square(dist[mask] / (width[mask])))
+            result[mask] = factor * exponent
             return result
 
         def _lorentzian(Ek, E, width=width):
-            return 1/(np.pi*width)*(width**2/((Ek-E)**2+width**2))
+            return 1 / (np.pi * width) * (width**2 / ((Ek - E)**2 + width**2))
 
         def _adaptive(Ek, E, width):
-            return 1/(width*np.sqrt(2*np.pi))*np.exp(-0.5*((Ek-E)/(width))**2)
+            return 1 / (width * np.sqrt(2 * np.pi)) * np.exp(-0.5 * ((Ek - E) / (width))**2)
 
         self.start_time = time.time()
         # Set dedaults for spins
@@ -1479,10 +1615,10 @@ class Spectral:
                 eng_label = r'E-E$_{\mathrm{VBM}}$'
             elif self.zero_cbm is True:
                 eng_label = r'E-E$_{\mathrm{CBM}}$'
-            ax.set_ylabel(eng_label+f' ({eng_unit})', fontsize=fontsize)
+            ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize = fontsize)
 
-            ax.tick_params(axis='both', which='major', labelsize=fontsize*0.8, length=12, width=1.2)
-            ax.tick_params(axis='both', which='minor', labelsize=fontsize*0.8, length=6,
+            ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
+            ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
                            right=True, top=False, bottom=False, left=True, width=1.2)
 
             ax.set_xlabel(r"$\mathit{g}(\mathit{E}$) (states/eV)", fontsize=fontsize)
@@ -1496,8 +1632,8 @@ class Spectral:
             elif self.convert_to_eV and not self.zero_fermi:
                 ax.set_xlabel(r"E (eV)", fontsize=fontsize)
 
-            ax.tick_params(axis='both', which='major', labelsize=fontsize*0.8, length=12, width=1.2)
-            ax.tick_params(axis='both', which='minor', labelsize=fontsize*0.8, length=6,
+            ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
+            ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
                            right=True, top=False, bottom=True, left=True, width=1.2)
 
             ax.set_ylabel(r"$\mathit{g}(\mathit{E}$) (states/eV)", fontsize=fontsize)
@@ -1622,7 +1758,7 @@ class Spectral:
 
                     for nb in range(self.nbands):
                         for ns in range(self.nspins):
-                            all_dos[nb, :, ns, :] = _gaussian(new_bs[nb, :, ns, :], E, width)*new_kpt_w[:, ns]
+                            all_dos[nb, :, ns, :] = _gaussian(new_bs[nb, :, ns, :], E, width) * new_kpt_w[:, ns]
 
                 elif broadening == 'adaptive':
                     # Lets change the shape of the bandstructure first
@@ -1635,7 +1771,7 @@ class Spectral:
 
                     for nb in range(self.nbands):
                         for ns in range(self.nspins):
-                            all_dos[nb, :, ns, :] = _adaptive(new_bs[nb, :, ns, :], E, new_weights[nb, :, ns, :])*new_kpt_w[:, ns]
+                            all_dos[nb, :, ns, :] = _adaptive(new_bs[nb, :, ns, :], E, new_weights[nb, :, ns, :]) * new_kpt_w[:, ns]
                 # Done, now store for next time
                 self.all_dos = all_dos
                 # print("Recaculated")
@@ -1644,7 +1780,7 @@ class Spectral:
             dos = np.sum(np.sum(all_dos, axis=0), axis=0)
             dos = np.swapaxes(dos, 0, 1)
 
-            dos = dos*spin_dir
+            dos = dos * spin_dir
             dos = dos * np.expand_dims(_fermi_dirac(temperature, E), axis=-1)
 
             # Sum over spins if not spin_polarised
@@ -1714,7 +1850,7 @@ class Spectral:
 
                     for nb in range(self.nbands):
                         for ns in range(self.nspins):
-                            all_dos[nb, :, ns, :] = _gaussian(new_bs[nb, :, ns, :], E, width)*new_kpt_w[:, ns]
+                            all_dos[nb, :, ns, :] = _gaussian(new_bs[nb, :, ns, :], E, width) * new_kpt_w[:, ns]
 
                     for ispec in pdos_species:
                         for iorb in pdos_orbitals:
@@ -1739,7 +1875,7 @@ class Spectral:
 
                     for nb in range(self.nbands):
                         for ns in range(self.nspins):
-                            all_dos[nb, :, ns, :] = _adaptive(new_bs[nb, :, ns, :], E, new_weights[nb, :, ns, :])*new_kpt_w[:, ns]
+                            all_dos[nb, :, ns, :] = _adaptive(new_bs[nb, :, ns, :], E, new_weights[nb, :, ns, :]) * new_kpt_w[:, ns]
 
                     for ispec in pdos_species:
                         for iorb in pdos_orbitals:
@@ -1759,12 +1895,12 @@ class Spectral:
 
             # Multiply in the FD and spin flips
 
-            pdos_dos = pdos_dos*spin_dir
+            pdos_dos = pdos_dos * spin_dir
             pdos_dos = pdos_dos * np.expand_dims(_fermi_dirac(temperature, E), axis=-1)
 
             if show_total:
                 all_dos = np.swapaxes(np.sum(np.sum(all_dos, axis=0), axis=0), 0, 1)
-                all_dos = all_dos*spin_dir
+                all_dos = all_dos * spin_dir
                 all_dos = all_dos * np.expand_dims(_fermi_dirac(temperature, E), axis=-1)
 
             # Sum over spins if not spin_polarised
@@ -1775,14 +1911,14 @@ class Spectral:
 
             if pdos_colors is not None:
                 try:
-                    assert len(pdos_colors) == len(pdos_orbitals)*len(pdos_species)
+                    assert len(pdos_colors) == len(pdos_orbitals) * len(pdos_species)
                     color = pdos_colors
                     custom_cycler = (cycler.cycler(color=color))
                     ax.set_prop_cycle(custom_cycler)
 
                 except:
                     warnings.warn("Warning: pdos_colors does not match number of colors")
-                    n_lines = len(pdos_orbitals)*len(pdos_species)
+                    n_lines = len(pdos_orbitals) * len(pdos_species)
                     color = plt.cm.bwr(np.linspace(0, 1, n_lines))
                     for i in range(len(color)):
                         if np.all(np.round(color[i, 0:3]) == 1):
@@ -1791,7 +1927,7 @@ class Spectral:
                     ax.set_prop_cycle(custom_cycler)
 
             else:
-                n_lines = len(pdos_orbitals)*len(pdos_species)
+                n_lines = len(pdos_orbitals) * len(pdos_species)
                 color = plt.cm.bwr(np.linspace(0, 1, n_lines))
 
                 for i in range(len(color)):
@@ -1813,9 +1949,9 @@ class Spectral:
 
                         for s in spin_index:
                             ax.plot(E, pdos_dos[ispec, iorb, :, s], linestyle=linestyle, linewidth=linewidth,
-                                    label=self.atoms[ispec]+"("+orbs[iorb]+')', color=color, zorder=len(pdos_species)-ispec)
+                                    label=self.atoms[ispec] + "(" + orbs[iorb] + ')', color=color, zorder=len(pdos_species) - ispec)
                             if shade:
-                                ax.fill_between(E, pdos_dos[ispec, iorb, :, s], alpha=alpha, color=color, zorder=len(pdos_species)-ispec)
+                                ax.fill_between(E, pdos_dos[ispec, iorb, :, s], alpha=alpha, color=color, zorder=len(pdos_species) - ispec)
 
             else:
 
@@ -1830,9 +1966,9 @@ class Spectral:
 
                         for s in spin_index:
                             ax.plot(pdos_dos[ispec, iorb, :, s], E, linestyle=linestyle, linewidth=linewidth,
-                                    label=self.atoms[ispec]+"("+orbs[iorb]+')', color=color, zorder=len(pdos_species)-ispec)
+                                    label=self.atoms[ispec] + "(" + orbs[iorb] + ')', color=color, zorder=len(pdos_species) - ispec)
                             if shade:
-                                ax.fill_betweenx(E, pdos_dos[ispec, iorb, :, s], alpha=alpha, color=color, zorder=len(pdos_species)-ispec)
+                                ax.fill_betweenx(E, pdos_dos[ispec, iorb, :, s], alpha=alpha, color=color, zorder=len(pdos_species) - ispec)
 
             # end pdos check
 
@@ -1843,7 +1979,7 @@ class Spectral:
 
             handles = [handles[i] for i in np.sort(ids)]
 
-            ax.legend(handles, labels, loc=loc, fontsize=fontsize*0.8, ncol=int(np.ceil((len(pdos_orbitals)*len(pdos_species))/4)),
+            ax.legend(handles, labels, loc=loc, fontsize=fontsize * 0.8, ncol=int(np.ceil((len(pdos_orbitals) * len(pdos_species)) / 4)),
                       fancybox=True, frameon=False, handlelength=1.5, handletextpad=0.2)
 
         # print("Total time =",time.time()-self.start_time)
@@ -1891,9 +2027,9 @@ class Spectral:
             newlow = low if low < newlow else newlow
             newhigh = high if high > newhigh else newhigh
 
-        margin = margin*(newhigh - newlow)
+        margin = margin * (newhigh - newlow)
 
-        setlim(newlow-margin, newhigh+margin)
+        setlim(newlow - margin, newhigh + margin)
 
     def _calculate_new_limit(self, fixed, dependent, limit):
         '''Calculates the min/max of the dependent axis given a fixed axis with limits'''

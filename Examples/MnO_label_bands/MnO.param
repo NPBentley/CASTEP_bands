@@ -1,0 +1,10 @@
+task : spectral
+spectral_task : bandstructure
+
+spin_polarised : true
+xc_functional : r2scan
+cut_off_energy : 900
+fix_occupancy : true
+
+max_scf_cycles : 60 
+data_distribution : kpoint

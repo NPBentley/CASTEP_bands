@@ -1,0 +1,557 @@
+ +-------------------------------------------------+
+ |                                                 |
+ |      CCC   AA    SSS  TTTTT  EEEEE  PPPP        |
+ |     C     A  A  S       T    E      P   P       |
+ |     C     AAAA   SS     T    EEE    PPPP        |
+ |     C     A  A     S    T    E      P           |
+ |      CCC  A  A  SSS     T    EEEEE  P           |
+ |                                                 |
+ +-------------------------------------------------+
+ |                                                 |
+ | Welcome to Academic Release CASTEP version 25.1 |
+ | Ab Initio Total Energy Program                  |
+ |                                                 |
+ | Authors:                                        |
+ | M. Segall, M. Probert, C. Pickard, P. Hasnip,   |
+ | S. Clark, K. Refson, J. R. Yates,               |
+ | A. Bartok-Partay, M. Payne                      |
+ |                                                 |
+ | Contributors:                                   |
+ | P. Lindan, P. Haynes, J. White, V. Milman,      |
+ | N. Govind, M. Gibson, P. Tulip, V. Cocula,      |
+ | B. Montanari, D. Quigley, M. Glover,            |
+ | L. Bernasconi, A. Perlov, M. Plummer,           |
+ | E. McNellis, J. Meyer, J. Gale, D. Jochym       |
+ | J. Aarons, B. Walker, R. Gillen, D. Jones       |
+ | T. Green, I. J. Bush, C. J. Armstrong,          |
+ | E. J. Higgins, E. L. Brown, M. S. McFly,        |
+ | J. Wilkins, B-C. Shih, P. J. P. Byrne,          |
+ | R. J. Maurer, J. C. Womack, J. Dziedzic,        |
+ | L. LeBlanc, T. K. Stenczel, J. Kermode,         |
+ | S. Sturniolo, B. Shi, B. Durham, M. Evans,      |
+ | M. J. Smith, A. Tamerus, Z. Hawkhead,           |
+ | V. Ravindran, T. Hollins, S. A. Joyce,          |
+ | R. T. Strong, A. M. Reilly, S. J. Donaldson     |
+ |                                                 |
+ | Copyright (c) 2000 - 2024                       |
+ |                                                 |
+ |     Distributed under license from Cambridge    |
+ |     Enterprise for academic use only.           |
+ |                                                 |
+ | Please cite                                     |
+ |                                                 |
+ |     "First principles methods using CASTEP"     |
+ |                                                 |
+ |         Zeitschrift fuer Kristallographie       |
+ |           220(5-6) pp. 567-570 (2005)           |
+ |                                                 |
+ | S. J. Clark, M. D. Segall, C. J. Pickard,       |
+ | P. J. Hasnip, M. J. Probert, K. Refson,         |
+ | M. C. Payne                                     |
+ |                                                 |
+ |       in all publications arising from          |
+ |              your use of CASTEP                 |
+ |                                                 |
+ +-------------------------------------------------+
+ |                                                 |
+ |              http://www.castep.org              |
+ |                                                 |
+ +-------------------------------------------------+
+
+
+
+ Compiled for linux_x86_64_gfortran10 on Sun, 14 Apr 2024 19:08:21 +0100
+ from code version 5cefc2ad9+  default  Fri Apr 12 10:30:01 2024 +0100
+ Compiler: GNU Fortran 13.2.0; Optimisation: fast
+ Comms   : Open MPI v4.1.5
+ MATHLIBS: openblas (LAPACK version 3.9.0)
+ FFT Lib : fftw3 version fftw-3.3.10
+ Fundamental constants values: CODATA 2018
+
+ Run started: Sun, 14 Apr 2024 19:13:52 +0100
+ Warning in parameters_read: presetting of magnetic moments on atoms cannot be guaranteed when metals_method /= density mixing
+
+ Atomic calculation performed for O: 1s2 2s2 2p4
+
+ Converged in 45 iterations to an ae energy of -2041.872 eV
+
+   ============================================================                
+   | Pseudopotential Report - Date of generation 14-04-2024   |                
+   ------------------------------------------------------------                
+   | Element: O Ionic charge:  6.00 Level of theory: RSCAN    |                
+   | Atomic Solver: Koelling-Harmon                           |                
+   |                                                          |                
+   |               Reference Electronic Structure             |                
+   |         Orbital         Occupation         Energy        |                
+   |            2s              2.000           -0.932        |                
+   |            2p              4.000           -0.344        |                
+   |                                                          |                
+   |                 Pseudopotential Definition               |                
+   |        Beta     l      e      Rc     scheme   norm       |                
+   |          1      0   -0.932   1.100     qc      0         |                
+   |          2      0    0.250   1.100     qc      0         |                
+   |          3      1   -0.344   1.100     qc      0         |                
+   |          4      1    0.250   1.100     qc      0         |                
+   |         loc     2    0.000   1.100     pn      0         |                
+   |                                                          |                
+   | Augmentation charge Rinner = 0.769                       |                
+   | Partial core correction Rc = 0.769                       |                
+   ------------------------------------------------------------                
+   | "2|1.1|17|20|23|20:21(qc=8)"                             |                
+   ------------------------------------------------------------                
+   |      Author: Chris J. Pickard, Cambridge University      |                
+   ============================================================                
+ Warning: otfg_output_psp cannot write out meta-GGA pseudopotentials presently.
+
+ Atomic calculation performed for Mn: 1s2 2s2 2p6 3s2 3p6 3d5 4s2
+
+ Converged in 54 iterations to an ae energy of -31529.645 eV
+
+   ============================================================                
+   | Pseudopotential Report - Date of generation 14-04-2024   |                
+   ------------------------------------------------------------                
+   | Element: Mn Ionic charge: 15.00 Level of theory: RSCAN   |                
+   | Atomic Solver: Koelling-Harmon                           |                
+   |                                                          |                
+   |               Reference Electronic Structure             |                
+   |         Orbital         Occupation         Energy        |                
+   |            3s              2.000           -3.271        |                
+   |            3p              6.000           -2.075        |                
+   |            3d              5.000           -0.253        |                
+   |            4s              2.000           -0.195        |                
+   |                                                          |                
+   |                 Pseudopotential Definition               |                
+   |        Beta     l      e      Rc     scheme   norm       |                
+   |          1      0   -3.271   1.803     qc      0         |                
+   |          2      0   -0.195   1.803     qc      0         |                
+   |          3      0    0.250   1.803     qc      0         |                
+   |          4      1   -2.075   1.803     qc      0         |                
+   |          5      1    0.250   1.803     qc      0         |                
+   |          6      2   -0.253   1.803     qc      0         |                
+   |          7      2    0.250   1.803     qc      0         |                
+   |         loc     3    0.000   1.803     pn      0         |                
+   |                                                          |                
+   | Augmentation charge Rinner = 0.600                       |                
+   | Partial core correction Rc = 0.600                       |                
+   ------------------------------------------------------------                
+   | "3|1.8|1.8|0.6|12|14|16|30U:40:31:32(qc=7)"              |                
+   ------------------------------------------------------------                
+   |      Author: Chris J. Pickard, Cambridge University      |                
+   ============================================================                
+ Warning: otfg_output_psp cannot write out meta-GGA pseudopotentials presently.
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -430.8105 eV
+
+ Pseudo atomic calculation performed for Mn 3s2 3p6 3d5 4s2
+
+ Converged in 44 iterations to a total energy of -2888.5463 eV
+ Calculation parallelised over 20 processes.
+ Data is distributed by k-point(20-way)
+ Each process may use up to 4 threads.
+
+ ************************************ Title ************************************
+ 
+
+ ***************************** General Parameters ******************************
+  
+ output verbosity                               : normal  (1)
+ write checkpoint data to                       : MnO.check
+ type of calculation                            : Electronic Spectroscopy
+ stress calculation                             : off
+ density difference calculation                 : off
+ electron localisation func (ELF) calculation   : off
+ Hirshfeld analysis                             : off
+ polarisation (Berry phase) analysis            : off
+ molecular orbital projected DOS                : off
+ deltaSCF calculation                           : off
+ unlimited duration calculation
+ timing information                             : on
+ memory usage estimate                          : on
+ write extra output files                       : on
+ write final potential to formatted file        : off
+ write final density to formatted file          : off
+ write BibTeX reference list                    : on
+ write OTFG pseudopotential files               : on
+ write electrostatic potential file             : on
+ write bands file                               : on
+ checkpoint writing                             : both castep_bin and check files
+  
+ output         length unit                     : A
+ output           mass unit                     : amu
+ output           time unit                     : ps
+ output         charge unit                     : e
+ output           spin unit                     : hbar/2
+ output         energy unit                     : eV
+ output          force unit                     : eV/A
+ output       velocity unit                     : A/ps
+ output       pressure unit                     : GPa
+ output     inv_length unit                     : 1/A
+ output      frequency unit                     : cm-1
+ output force constant unit                     : eV/A**2
+ output         volume unit                     : A**3
+ output   IR intensity unit                     : (D/A)**2/amu
+ output         dipole unit                     : D
+ output         efield unit                     : eV/A/e
+ output        entropy unit                     : J/mol/K
+ output    efield chi2 unit                     : pm/V
+  
+ wavefunctions paging                           : none
+ random number generator seed                   :  191352357
+ data distribution                              : k-point only
+ optimization strategy                          : balance speed and memory
+
+ *********************** Exchange-Correlation Parameters ***********************
+  
+ using functional                               : R2SCAN
+ relativistic treatment                         : Koelling-Harmon
+ DFT+D: Semi-empirical dispersion correction    : off
+
+ ************************* Pseudopotential Parameters **************************
+  
+ pseudopotential representation                 : reciprocal space
+ <beta|phi> representation                      : reciprocal space
+ spin-orbit coupling                            : off
+
+ **************************** Basis Set Parameters *****************************
+  
+ plane wave basis set cut-off                   :   900.0000   eV
+ size of standard grid                          :     2.0000
+ size of   fine   gmax                          :    30.7390   1/A
+ finite basis set correction                    : none
+
+ **************************** Electronic Parameters ****************************
+  
+ number of  electrons                           :  42.00    
+ net charge of system                           :  0.000    
+ net spin   of system                           :  0.000    
+ number of  up  spins                           :  21.00    
+ number of down spins                           :  21.00    
+ treating system as spin-polarized
+ number of bands                                :         21
+
+ ********************* Electronic Minimization Parameters **********************
+  
+ Method: Treating system as non-metallic,
+         and number of  SD  steps               :          1
+         and number of  CG  steps               :          4
+  
+ total energy / atom convergence tol.           : 0.1000E-05   eV
+ max force / atom convergence tol.              : ignored
+ convergence tolerance window                   :          3   cycles
+ max. number of SCF cycles                      :         60
+ periodic dipole correction                     : NONE
+
+ *********************** Population Analysis Parameters ************************
+  
+ Population analysis with cutoff                :  3.000       A
+ Population analysis output                     : summary and pdos components
+
+ ********************* Electronic Spectroscopy Parameters **********************
+  
+ electronic spectroscopy with theory level      : DFT       
+ spectroscopy calculation                       : band structure
+ max. number of iterations                      :         60
+ max. steps per iteration                       :          5
+ number of bands / k-point                      :         44
+ band convergence tolerance                     : 0.1000E-05   eV
+ write orbitals file                            : off
+
+ *******************************************************************************
+  
+
+                           -------------------------------
+                                      Unit Cell
+                           -------------------------------
+        Real Lattice(A)                      Reciprocal Lattice(1/A)
+     1.8126224     0.0000000     5.1268704        2.310900595  -0.000000000   0.408513370
+    -0.9063112     1.5697771     5.1268704       -1.155450297   2.001298621   0.408513370
+    -0.9063112    -1.5697771     5.1268704       -1.155450297  -2.001298621   0.408513370
+
+                       Lattice parameters(A)       Cell Angles
+                    a =      5.437867          alpha =   33.557310
+                    b =      5.437867          beta  =   33.557310
+                    c =      5.437867          gamma =   33.557310
+
+                       Current cell volume =            43.764192       A**3
+                                   density =             3.241803   AMU/A**3
+                                           =             5.383141     g/cm^3
+
+                           -------------------------------
+                                     Cell Contents
+                           -------------------------------
+                         Total number of ions in cell =    4
+                      Total number of species in cell =    2
+                        Max number of any one species =    2
+
+            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+            x  Element    Atom        Fractional coordinates of atoms  x
+            x            Number           u          v          w      x
+            x----------------------------------------------------------x
+            x  O            1         0.250000   0.250000   0.250000   x 
+            x  O            2         0.750000   0.750000   0.750000   x 
+            x  Mn           1         0.000000   0.000000   0.000000   x 
+            x  Mn           2         0.500000   0.500000   0.500000   x 
+            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+                         No user defined ionic velocities
+
+                           -------------------------------
+                                   Details of Species
+                           -------------------------------
+
+                               Mass of species in AMU
+                                    O   15.9994000
+                                    Mn   54.9380500
+
+                          Electric Quadrupole Moment (Barn)
+                                    O   -0.0255800 Isotope 17
+                                    Mn    0.3300000 Isotope 55
+         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+         |  Element    Atom         Initial            Initial magnetic       |
+         |            Number    spin polarization        moment (uB)     Fix? |
+         |--------------------------------------------------------------------|
+         | O              1         0.000000              0.000       F       |
+         | O              2         0.000000              0.000       F       |
+         | Mn             1        -0.320000             -4.800       F       |
+         | Mn             2         0.320000              4.800       F       |
+         xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+
+         Quantisation axis:    0.00000   0.00000   1.00000
+
+
+                          Files used for pseudopotentials:
+                                    O 2|1.1|17|20|23|20:21(qc=8)
+                                    Mn 3|1.8|1.8|0.6|12|14|16|30U:40:31:32(qc=7)
+
+                           -------------------------------
+                              k-Points For BZ Sampling
+                           -------------------------------
+                       MP grid size for SCF calculation is  4  4  4
+                            with an offset of   0.000  0.000  0.000
+                       Number of kpoints used =            20
+
+                           -------------------------------
+                               Symmetry and Constraints
+                           -------------------------------
+
+                      Cell is a supercell containing 2 primitive cells
+                      Maximum deviation from symmetry = 0.235002E-15     ANG
+                            Magnetic structure symmetry:
+      User supplied or default Hubbard U data has reduced the symmetry of the system
+
+                      Number of symmetry operations   =           4
+                      Number of ionic constraints     =           3
+                      Point group of crystal =     5: C2h, 2/m, 2/m
+                      Space group of crystal =   225: Fm-3m, -F 4 2 3
+
+             Set iprint > 1 for details on symmetry rotations/translations
+
+                         Centre of mass is constrained
+             Set iprint > 1 for details of linear ionic constraints
+
+                         Number of cell constraints= 2
+                         Cell constraints are:  1 1 3 4 4 6
+
+                         External pressure/stress (GPa)
+                          0.00000   0.00000   0.00000
+                                    0.00000   0.00000
+                                              0.00000
+ 
++---------------- MEMORY AND SCRATCH DISK ESTIMATES PER PROCESS --------------+
+|                                                     Memory          Disk    |
+| Baseline code, static data and system overhead      685.0 MB         0.0 MB |
+| BLAS internal memory storage                          0.0 MB         0.0 MB |
+| Model and support data                              759.1 MB         0.0 MB |
+| Electronic energy minimisation requirements          25.4 MB         0.0 MB |
+| Force calculation requirements                       34.8 MB         0.0 MB |
+|                                               ----------------------------- |
+| Approx. total storage required per process         1479.0 MB         0.0 MB |
+|                                                                             |
+| Requirements will fluctuate during execution and may exceed these estimates |
++-----------------------------------------------------------------------------+
+Calculating approximate eigenstates for fixed initial Hamiltonian
+Cut-off for approx. calculation is   89.988 eV
+Improving approx. states at cut-off of  450.000 eV
+Resetting cut-off to  900.000 eV
+Improving states further at cut-off of  900.000 eV
+Calculating total energy with cut-off of  900.000 eV.
+------------------------------------------------------------------------ <-- SCF
+SCF loop      Energy                           Energy gain       Timer   <-- SCF
+                                               per atom          (sec)   <-- SCF
+------------------------------------------------------------------------ <-- SCF
+Initial  -6.66692861E+003                                         15.98  <-- SCF
+      1  -6.66983151E+003                    7.25726698E-001      25.70  <-- SCF
+      2  -6.67044506E+003                    1.53385271E-001      35.42  <-- SCF
+      3  -6.67101417E+003                    1.42278884E-001      45.13  <-- SCF
+      4  -6.67157428E+003                    1.40025990E-001      54.84  <-- SCF
+      5  -6.67204599E+003                    1.17927909E-001      64.55  <-- SCF
+      6  -6.67253236E+003                    1.21592482E-001      74.26  <-- SCF
+      7  -6.67300114E+003                    1.17196095E-001      83.96  <-- SCF
+      8  -6.67341470E+003                    1.03388754E-001      93.67  <-- SCF
+      9  -6.67377792E+003                    9.08047940E-002     103.37  <-- SCF
+     10  -6.67409213E+003                    7.85534418E-002     113.08  <-- SCF
+     11  -6.67427353E+003                    4.53504657E-002     122.78  <-- SCF
+     12  -6.67435349E+003                    1.99890768E-002     132.48  <-- SCF
+     13  -6.67438157E+003                    7.02151616E-003     142.17  <-- SCF
+     14  -6.67438966E+003                    2.02174348E-003     151.86  <-- SCF
+     15  -6.67439179E+003                    5.32421051E-004     161.56  <-- SCF
+     16  -6.67439234E+003                    1.38085130E-004     171.26  <-- SCF
+     17  -6.67439248E+003                    3.50304598E-005     180.95  <-- SCF
+     18  -6.67439252E+003                    9.24397457E-006     190.64  <-- SCF
+     19  -6.67439253E+003                    2.27239857E-006     200.34  <-- SCF
+     20  -6.67439253E+003                    6.42506439E-007     210.04  <-- SCF
+     21  -6.67439253E+003                    1.45749601E-007     220.54  <-- SCF
+------------------------------------------------------------------------ <-- SCF
+ 
+Integrated Spin Density     =   -0.966198E-14 hbar/2
+Integrated |Spin Density|   =     9.33733     hbar/2
+ 
+Final energy =  -6674.392531745     eV
+(energy not corrected for finite basis set)
+ 
+
+Writing analysis data to MnO.castep_bin
+
+Writing model to MnO.check
+ 
++---------------- MEMORY AND SCRATCH DISK ESTIMATES PER PROCESS --------------+
+|                                                     Memory          Disk    |
+|                                               ----------------------------- |
+| Approx. total storage required per process          501.6 MB         0.0 MB |
+|                                                                             |
+| Requirements will fluctuate during execution and may exceed these estimates |
++-----------------------------------------------------------------------------+
+ 
+  =====================================================================
+  +                                                                   +
+  +                 Calculation of Spectral Properties                +
+  +                                                                   +
+  + Calculation re-parallelised over 20 processes.                    +
+  + There are 32 k-points distributed across 20 k-point groups.       +
+  + Data distributed by G-vector(1-way), k-point(20-way), band(1-way) +
+  + Data distributed by k-point(20-way)                               +
+  +                                                                   +
+  =====================================================================
+  Starting k-point:        1 of        2 Time:      0.00 sec  |<-- SPEC
+  Starting k-point:        2 of        2 Time:      6.33 sec  |<-- SPEC
+  Starting k-point:        1 of        2 Time:     13.01 sec  |<-- SPEC
+  Starting k-point:        2 of        2 Time:     19.45 sec  |<-- SPEC
+  Check-pointing spectral run                                 |<-- SPEC
+  Total time to compute matrix elements             25.91 sec |<-- SPEC
+  
+  + Calculation re-parallelised over 20 processes.                    +
+  + Data distributed by k-point(20-way)                               +
+
+ ******************** Symmetrised Forces ********************
+ *                                                          *
+ *               Cartesian components (eV/A)                *
+ * -------------------------------------------------------- *
+ *                         x            y            z      *
+ *                                                          *
+ * O               1      0.00001      0.00002      0.00001 *
+ * O               2     -0.00001     -0.00002     -0.00001 *
+ * Mn              1     -0.00000      0.00000      0.00000 *
+ * Mn              2     -0.00000      0.00000      0.00000 *
+ *                                                          *
+ ************************************************************
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -430.8105 eV
+
+ Pseudo atomic calculation performed for Mn 3s2 3p6 3d5 4s2
+
+ Converged in 44 iterations to a total energy of -2888.5463 eV
+Charge spilling parameter for spin component 1 = 0.13%
+Charge spilling parameter for spin component 2 = 0.13%
+
+                   Orbital Populations                  
+  ---------------------------------------------------------------
+     Ion    Atom   Orbital              Up        Down      Spin
+  ---------------------------------------------------------------
+      O     1      S                    0.935     0.935    -0.000
+      O     1      Px                   0.844     0.844     0.000
+      O     1      Py                   0.818     0.818    -0.000
+      O     1      Pz                   0.829     0.829    -0.000
+      O     2      S                    0.935     0.935     0.000
+      O     2      Px                   0.845     0.844     0.000
+      O     2      Py                   0.818     0.818    -0.000
+      O     2      Pz                   0.829     0.829     0.000
+     Mn     1      S                    1.004     1.000     0.003
+     Mn     1      Px                   1.004     1.000     0.004
+     Mn     1      Py                   1.003     1.000     0.002
+     Mn     1      Pz                   1.003     1.000     0.003
+     Mn     1      Dzz                  0.033     0.994    -0.961
+     Mn     1      Dzy                  0.075     0.996    -0.921
+     Mn     1      Dzx                  0.077     0.996    -0.919
+     Mn     1      Dxx-yy               0.052     0.994    -0.942
+     Mn     1      Dxy                  0.068     0.993    -0.925
+     Mn     1      S                    0.139     0.197    -0.058
+     Mn     1      Px                   0.079     0.082    -0.003
+     Mn     1      Py                   0.091     0.094    -0.003
+     Mn     1      Pz                   0.069     0.103    -0.034
+     Mn     2      S                    1.000     1.004    -0.003
+     Mn     2      Px                   1.000     1.004    -0.004
+     Mn     2      Py                   1.000     1.003    -0.002
+     Mn     2      Pz                   1.000     1.003    -0.003
+     Mn     2      Dzz                  0.994     0.033     0.961
+     Mn     2      Dzy                  0.996     0.075     0.921
+     Mn     2      Dzx                  0.996     0.077     0.919
+     Mn     2      Dxx-yy               0.994     0.052     0.942
+     Mn     2      Dxy                  0.993     0.068     0.925
+     Mn     2      S                    0.197     0.139     0.058
+     Mn     2      Px                   0.082     0.079     0.003
+     Mn     2      Py                   0.094     0.091     0.003
+     Mn     2      Pz                   0.103     0.069     0.034
+  ---------------------------------------------------------------
+                           Total:      21.000    21.000     0.000
+  ---------------------------------------------------------------
+
+     Atomic Populations (Mulliken)
+     -----------------------------
+Species          Ion Spin      s       p       d       f      Total   Charge(e)   Spin(hbar/2)
+==============================================================================================
+  O               1   up:     0.935   2.491   0.000   0.000   3.426    -0.853        0.000
+                  1   dn:     0.935   2.491   0.000   0.000   3.426
+  O               2   up:     0.935   2.491   0.000   0.000   3.426    -0.853        0.000
+                  2   dn:     0.935   2.491   0.000   0.000   3.426
+  Mn              1   up:     1.143   3.249   0.306   0.000   4.697     0.853       -4.754
+                  1   dn:     1.198   3.279   4.973   0.000   9.450
+  Mn              2   up:     1.198   3.279   4.973   0.000   9.450     0.853        4.754
+                  2   dn:     1.143   3.249   0.306   0.000   4.697
+==============================================================================================
+
+                 Bond                   Population        Spin       Length (A)
+================================================================================
+               O 2 -- Mn 2                   0.50        -0.08          2.22000
+               O 2 -- Mn 1                   0.50         0.08          2.22000
+               O 1 -- Mn 2                   0.50        -0.08          2.22000
+               O 1 -- Mn 1                   0.50         0.08          2.22000
+================================================================================
+
+
+Writing analysis data to MnO.castep_bin
+
+Writing model to MnO.check
+ 
+ A BibTeX formatted list of references used in this run has been written to 
+ MnO.bib
+ 
+Initialisation time =      8.04 s
+Calculation time    =    243.90 s
+Finalisation time   =      0.45 s
+Total time          =    252.39 s
+Peak Memory Use     = 2503584 kB
+ 
+Overall parallel efficiency rating: Excellent (95%)
+ 
+Data was distributed by:-
+k-point (20-way); efficiency rating: Excellent (95%)
+ 
+Parallel notes:
+1) Calculation only took 251.9 s, so efficiency estimates may be inaccurate.
