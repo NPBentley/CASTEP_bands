@@ -39,6 +39,9 @@ class Spectral:
          Convert eigenvalues from atomic units (Hartrees) to electronvolts
     flip_spins : boolean
          Swap the spin channels when making the plot (Default : True)
+    high_sym_spacegroup
+         Get the high-symmetry points from the space group rather than just the
+          geometry/lattice parameters of the computational cell (Default : True)
 
     Methods
     ----------
@@ -62,7 +65,8 @@ class Spectral:
                  zero_cbm=False,
                  zero_shift=None,
                  convert_to_eV=True,
-                 flip_spins=False):
+                 flip_spins=False,
+                 high_sym_spacegroup=True):
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
         self.start_time = time.time()
         self.pdos_has_read = False
@@ -273,17 +277,121 @@ class Spectral:
         self.high_sym = high_sym
 
         # Set up the special points
+        def _get_high_sym_points_spg(cell):
+            """Determine the high-symmetry points uisng the spacegroup.
+
+            ASE will use just use the crystal system based on solely the lattice parameters
+            whereas CASTEP will utilise the space group, which will be particularly important
+            in e.g. magnetic materials where the computational cell may have a different crystal system
+            to the (conventional) crystallographic one.
+
+            For low-symmetry Bravais lattices where the special/high-symmetry points are
+            lattice parameter dependent, we will use the lattice parameters of the computational cell.
+
+            Author : V Ravindran 08/05/2024
+            """
+            import ase.spacegroup as spg
+            import ase.lattice as latt
+
+            # Get all the Bravais lattices
+            bv_dict = latt.bravais_lattices
+
+            # Get the cell's lattice parameters
+            a, b, c, alpha, beta, gamma = cell.cell.cellpar()
+
+            # Get the space group information for this cell
+            spg_cell = spg.get_spacegroup(cell)
+            spg_no = spg_cell.no
+
+            # Get the first letter of the spacegroup in international notation.
+            # This gives the information about the Bravais lattice
+            bv_symb = spg_cell.symbol.split()[0].upper()
+
+            # Now use the space group to determine the crystal system.
+            # We can determine the actual Bravais lattice using the first
+            # letter of the international notation symbol.
+            #
+            # Like in CASTEP, particularly for low symmetry Bravais lattices
+            # where the high symmetry points depend on lattice parameters,
+            # we will use the computational cell's lattice parameters.
+            # Variations for each bravais lattice should be handled by ASE (in principle...)
+            if 1 <= spg_no <= 2:
+                # Triclinic lattice
+                bv = bv_dict['TRI'](a=a, b=b, c=c,
+                                    alpha=alpha, beta=beta, gamma=gamma)
+            elif 3 <= spg_no <= 15:
+                # Monoclinic
+                if bv_symb == 'P':  # Primitive monoclinic
+                    bv = bv_dict['MCL'](a=a, b=b, c=c,
+                                        alpha=alpha)
+                elif bv_symb == 'C':  # Base-centred (C-centred) monoclinic
+                    bv = bv_dict['MCLC'](a=a, b=b, c=c,
+                                         alpha=alpha)
+                else:
+                    raise IndexError(f'Unknown monoclinic lattice with space group: {spg_cell.symbol}')
+            elif 16 <= spg_no <= 74:
+                # Orthorhombic
+                if bv_symb == 'P':  # Primitive Orthorhombic
+                    bv = bv_dict['ORC'](a=a, b=b, c=c)
+                elif bv_symb == 'I':  # Body-Centred Orthorhombic
+                    bv = bv_dict['ORCI'](a=a, b=b, c=c)
+                elif bv_symb == 'F':  # Face-Centred Orthorhombic
+                    bv = bv_dict['ORCF'](a=a, b=b, c=c)
+                elif bv_symb == 'A' or bv_symb == 'C':  # A/C-centred
+                    bv = bv_dict['ORCC'](a=a, b=b, c=c)
+                else:
+                    raise IndexError(f'Unknown orthorhombic lattice with space group: {spg_cell.symbol}')
+            elif 75 <= spg_no <= 142:
+                # Tetragonal
+                if bv_symb == 'P':  # Primitive Tetragonal
+                    bv = bv_dict['TET'](a=a, c=c)
+                elif bv_symb == 'I':  # Body-Centred Tetragonal
+                    bv = bv_dict['BCT'](a=a, c=c)
+                else:
+                    raise IndexError(f'Unknown tetragonal lattice with space group: {spg_cell.symbol}')
+            elif 143 <= spg_no <= 167:
+                # Trigonal
+                if bv_symb == 'R':  # R-trigonal/Rhombohedral
+                    bv = bv_dict['RHL'](a=a, alpha=alpha)
+                elif bv_symb == 'P':  # Hexagonal
+                    bv = bv_dict['HEX'](a=a, c=c)
+                else:
+                    raise IndexError(f'Unknown trigonal lattice with space group: {spg_cell.symbol}')
+            elif 168 <= spg_no <= 194:
+                # Hexagonal
+                bv = bv_dict['HEX'](a=a, c=c)
+            elif 195 <= spg_no <= 230:
+                # Cubic
+                if bv_symb == 'P':  # Primitive/Simple Cubic
+                    bv = bv_dict['CUB'](a=a)
+                elif bv_symb == 'I':  # Body-Centred Cubic
+                    bv = bv_dict['BCC'](a=a)
+                elif bv_symb == 'F':  # Face-Centred Cubic
+                    bv = bv_dict['FCC'](a=a)
+                else:
+                    raise IndexError(f'Unknown cubic lattice with space group: {spg_cell.symbol}')
+            else:
+                raise IndexError(f'Unknown Spacegroup {spg_no}: {spg_cell.symbol}')
+
+            return bv.get_special_points()
+
         # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
         # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
         # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
-        # CASTEP_COMMAND environmental variable is set                                                 V Ravindran CELL_READ 01/05/2024
+        # CASTEP_COMMAND environmental variable is set which will slow down the read.                  V Ravindran CELL_READ 01/05/2024
         cell = io.read(seed + ".cell",
                        # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
                        calculator_args={"keyword_tolerance": 3}
                        )
-        bv_latt = cell.cell.get_bravais_lattice()
-        special_points = bv_latt.get_special_points()
 
+        # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
+        if high_sym_spacegroup is True:
+            special_points = _get_high_sym_points_spg(cell)
+        else:
+            bv_latt = cell.cell.get_bravais_lattice()
+            special_points = bv_latt.get_special_points()
+
+        # Get the atoms in cell.
         atoms = np.unique(cell.get_chemical_symbols())[::-1]
         mass = []
         for i in atoms:
@@ -1091,7 +1199,7 @@ class Spectral:
             eng_label = r'E-E$_{\mathrm{VBM}}$'
         elif self.zero_cbm is True:
             eng_label = r'E-E$_{\mathrm{CBM}}$'
-        ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize = fontsize)
+        ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize=fontsize)
 
         ax.set_xlim(1, len(self.kpoints))
         ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
@@ -1615,7 +1723,7 @@ class Spectral:
                 eng_label = r'E-E$_{\mathrm{VBM}}$'
             elif self.zero_cbm is True:
                 eng_label = r'E-E$_{\mathrm{CBM}}$'
-            ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize = fontsize)
+            ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize=fontsize)
 
             ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
             ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
