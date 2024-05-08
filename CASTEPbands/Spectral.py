@@ -1168,15 +1168,17 @@ class Spectral:
         label_gap = _format_label(label_gap)
 
         # Get the valence band maximum and conduction band minimum for each spin.
-        vbm_k, cbm_k, vbm_eig, cbm_eig = self.get_band_info(ret_vbm_cbm=True)
+        vbm_i, cbm_i, vbm_eig, cbm_eig = self.get_band_info(ret_vbm_cbm=True)
 
         def _mark_gap_bs(ns: int, do_arrow: bool = True):
             """Helper function to mark the gap on a bandstructure for a given spin"""
-            ax.scatter(vbm_k[ns], vbm_eig[ns], color=color[ns], label=label_vbm[ns])
-            ax.scatter(cbm_k[ns], cbm_eig[ns], color=color[ns], label=label_cbm[ns])
+            vbm_k = self.kpoints[vbm_i[ns]]
+            cbm_k = self.kpoints[cbm_i[ns]]
+            ax.scatter(vbm_k, vbm_eig[ns], color=color[ns], label=label_vbm[ns])
+            ax.scatter(cbm_k, cbm_eig[ns], color=color[ns], label=label_cbm[ns])
             if do_arrow is True:
-                ax.arrow(vbm_k[ns], vbm_eig[ns],
-                         cbm_k[ns] - vbm_k[ns], cbm_eig[ns] - vbm_eig[ns],
+                ax.arrow(vbm_k, vbm_eig[ns],
+                         cbm_k - vbm_k, cbm_eig[ns] - vbm_eig[ns],
                          width=linewidth[ns],
                          head_width=headwidth[ns],
                          color=color[ns],
