@@ -391,7 +391,6 @@ class Spectral:
             bv_latt = cell.cell.get_bravais_lattice()
             special_points = bv_latt.get_special_points()
 
-
         # Get the atoms in cell.
         atoms = np.unique(cell.get_chemical_symbols())[::-1]
         mass = []
@@ -1200,7 +1199,7 @@ class Spectral:
             eng_label = r'E-E$_{\mathrm{VBM}}$'
         elif self.zero_cbm is True:
             eng_label = r'E-E$_{\mathrm{CBM}}$'
-        ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize = fontsize)
+        ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize=fontsize)
 
         ax.set_xlim(1, len(self.kpoints))
         ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
@@ -1724,7 +1723,7 @@ class Spectral:
                 eng_label = r'E-E$_{\mathrm{VBM}}$'
             elif self.zero_cbm is True:
                 eng_label = r'E-E$_{\mathrm{CBM}}$'
-            ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize = fontsize)
+            ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize=fontsize)
 
             ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
             ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
