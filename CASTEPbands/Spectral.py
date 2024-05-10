@@ -1060,8 +1060,11 @@ class Spectral:
                      label_vbm: 'str | list' = None,
                      label_cbm: 'str | list' = None,
                      label_gap: 'str | list' = None,
+                     alpha: float = 0.85,
                      do_arrow: bool = True,
-                     dos: bool = False):
+                     dos: bool = False,
+                     return_actors=False,
+                     ):
         """Mark the band gap on a bandstructure or DOS plot.
 
         Parameters
@@ -1083,10 +1086,14 @@ class Spectral:
             label for CBM, cf. label_vbm
         label_gap : 'str | list'
             label for gap arrow cf. label_vbm
+        alpha: float
+            transparency of band gap marker
         do_arrow : bool
             add the arrow when marking the gap, otherwise, just indicate using points
         dos : bool
             marking on a DOS plot rather than a bandstructure
+        return_actors: bool
+            return the actors used to mark the gap (default : False)
         """
 
         # Get number of electrons in each spin channel
@@ -1174,25 +1181,34 @@ class Spectral:
             """Helper function to mark the gap on a bandstructure for a given spin"""
             vbm_k = self.kpoints[vbm_i[ns]]
             cbm_k = self.kpoints[cbm_i[ns]]
-            ax.scatter(vbm_k, vbm_eig[ns], color=color[ns], label=label_vbm[ns])
-            ax.scatter(cbm_k, cbm_eig[ns], color=color[ns], label=label_cbm[ns])
+            vbm_act = ax.scatter(vbm_k, vbm_eig[ns], color=color[ns], label=label_vbm[ns],
+                                 zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                 )
+            cbm_act = ax.scatter(cbm_k, cbm_eig[ns], color=color[ns], label=label_cbm[ns],
+                                 zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                 )
             if do_arrow is True:
-                ax.arrow(vbm_k, vbm_eig[ns],
-                         cbm_k - vbm_k, cbm_eig[ns] - vbm_eig[ns],
-                         width=linewidth[ns],
-                         head_width=headwidth[ns],
-                         color=color[ns],
-                         length_includes_head=True,
-                         zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
-                         label=label_gap[ns]
-                         )
+                gap_arrow = ax.arrow(vbm_k, vbm_eig[ns],
+                                     cbm_k - vbm_k, cbm_eig[ns] - vbm_eig[ns],
+                                     width=linewidth[ns],
+                                     head_width=headwidth[ns],
+                                     color=color[ns],
+                                     length_includes_head=True,
+                                     zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                     label=label_gap[ns]
+                                     )
+            return vbm_act, cbm_act, gap_arrow
 
         # Now mark the gap
         if dos is True:
             raise NotImplementedError('Marking of gap not implemented for density of states')
         else:
+            gap_actors = [None for ns in spin_index]
             for ns in spin_index:
-                _mark_gap_bs(ns, do_arrow=do_arrow)
+                gap_actors[ns] = _mark_gap_bs(ns, do_arrow=do_arrow)
+
+        if return_actors is True:
+            return gap_actors
 
     def plot_bs(self,
                 ax,
@@ -1229,7 +1245,7 @@ class Spectral:
                 mark_gap_headwidth=None,
                 mark_gap_linewidth=None,
                 band_labels=None,
-                legend_loc='best'
+                # legend_loc='best' V Ravindran 10/05/2024
                 ):
         """Plot the band structure from a .bands file.
 
@@ -1311,8 +1327,6 @@ class Spectral:
             (default : 0.15 for both spin channels)
         band_labels : list(dtype=str)
             labels for specific bands specified by bands_ids.
-        legend_loc : str or pair of floats
-            position of the legend for the plot if a legend is created (default: 'best')
 
         Raises
         ------
@@ -1525,15 +1539,19 @@ class Spectral:
 
             # Set up labels according to the band_ids_mask
             band_labels = _setup_str_mask(band_labels, band_ids_mask)
+        else:  # V Ravindran BS_LEGEND 10/05/2024
+            # Created a list of empty labels to use for bands
+            band_labels = np.full((self.nbands, len(spin_index)), None)
 
         # Do the standard plotting, no pdos here
         if not pdos:
             # Here we plot all of the bands. We can provide a mechanism latter for plotting invididual ones
 
+            # DEPRECIATED NOW
             # Store the lines for each band in a list - band_labels V Ravindran 12/04/2024
             # so we can add them to legend when labelling. -  band_labels V Ravindran 12/04/2024
-            custom_lines = []
-            l_labels = []  # local copy of band_labels as a list
+            # custom_lines = []
+            # l_labels = []  # local copy of band_labels as a list
             for nb in range(self.nbands):
                 for ns in spin_index:
 
@@ -1541,7 +1559,6 @@ class Spectral:
                         # If the band is not within the mask,
                         # then do not plot it and skip to the next band.
                         continue
-                        # Mono
 
                     # Updated colour selection V Ravindran 14/04/2024
                     line_color = ''
@@ -1555,26 +1572,32 @@ class Spectral:
                     if line_color == '':
                         # No colour specified so let pick from rcParams
                         line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth)
+                                           linestyle=linestyle, linewidth=linewidth,
+                                           label = band_labels[nb,ns]
+                                           )
                     else:
                         line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth, color=line_color)
+                                           linestyle=linestyle, linewidth=linewidth, color=line_color,
+                                           label = band_labels[nb,ns]
+                                           )
 
-                    if band_labels is not None:  # band_labels V Ravindran 12/04/2024
+                    # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
                         # V Ravindran: The check further up should have caught the fact that band_ids
                         # needs to be supplied together with band_labels.
-                        # This *should* prevent every band from being labelled.
-                        # Thus only bands we want to label should be added.
-                        #
-                        # Unfortunately, it requires this routine to be called twice,
-                        # once for the overall band structure, and the second for the labels...
-                        custom_lines.append(line)
-                        l_labels.append(band_labels[nb, ns])
+                        # If no band_labels were supplied, an empty array of the shape (nbands, len(spin_index))
+                        # will have been created with values initialised to None
+                        # and this if statement should be bypassed.
+                        # custom_lines.append(line)
+                        # l_labels.append(band_labels[nb, ns])
 
-            # Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
-            if band_labels is not None:
-                ax.legend(custom_lines, l_labels, loc=legend_loc)
+            # It's easier to add the legend using matplotlib manually at the end  V Ravindran BS_LEGEND 10/05/2024
+            # after calling the plot_bs method rather than returning the lines    V Ravindran BS_LEGEND 10/05/2024
+            # and attempting to create the legend manually.                       V Ravindran BS_LEGEND 10/05/2024
+            # if band_labels is not None:
+                # DEPRECIATED Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
+                # ax.legend(custom_lines, l_labels, loc=legend_loc)
                 # Return the lines and labels so the user can customise the legend how they wish
+                # return custom_lines
 
             if output_gle:
                 self._plot_gle(spin_polarised, spin_index)
