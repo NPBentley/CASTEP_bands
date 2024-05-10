@@ -13,9 +13,10 @@ import numpy as np
 from CASTEPbands import Spectral
 
 
-def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.ndarray,
+def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.ndarray = None,
                color: 'str | list' = None, label_first: str = None, labels: list = None,
                linewidth: float = 1.2, linestyle: str = '-',
+               marker: str = None, markersize: float = None,
                spin_index: int = None):
     """Add a specified set of bands to an existing bandstructure axis.
 
@@ -29,7 +30,7 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
     ax : mpl.axes._axes.Axes
         the axes to plot the bands on
     band_ids : np.ndarray
-        indices of band to plot
+        indices of band to plot. If None provided, then all the bands will be plot
     color : str or list
         colour to use for bands. If str, will use same colour for all bands, otherwise if list,
         colours will be set on a band-by-band basis.
@@ -42,6 +43,10 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
         width of lines for bands (default = 1.2)
     linestyle : str
         style of lines for bands (default = '-')
+    marker : str
+        marker style to use
+    markersize : float
+        size of markers to use
     spin_index : int
         spin channel to plot (default : none)
 
@@ -50,7 +55,13 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
     IndexError
         colour/labels do not have the same length as band_ids
     """
-    band_ids = band_ids.astype(int)
+    if band_ids is not None:
+        band_ids = np.array(band_ids, dtype=int)
+    else:
+        # 09/05/2024 - Plot all bands by default
+        nbands = spec.BandStructure.shape[0]
+        band_ids = np.arange(nbands, dtype=int)
+
     if isinstance(color, list):
         if band_ids.shape != len(color):
             raise IndexError('Number of colours does not match number of bands')
@@ -79,6 +90,8 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
                 # Label the first band in the set using a separate label if requested
                 ax.plot(kpts, banddata[nb, :, ns], color=color,
                         linestyle=linestyle, linewidth=linewidth,
+                        # Marker style added 09/05/2024
+                        marker=marker, markersize=markersize,
                         label=label_first)
                 # Make sure to set the flag to false, otherwise, otherwise all bands
                 # will be labelled - not what we want!
@@ -88,10 +101,15 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
                 # Label bands
                 ax.plot(kpts, banddata[nb, :, ns], color=color,
                         linestyle=linestyle, linewidth=linewidth,
+                        # Marker style added 09/05/2024
+                        marker=marker, markersize=markersize,
                         label=labels[i])
             else:
                 # Just plot the bands
-                ax.plot(kpts, banddata[nb, :, ns], color=color)
+                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                        linestyle=linestyle, linewidth=linewidth,
+                        # Marker style added 09/05/2024
+                        marker=marker, markersize=markersize)
 
     # Decide on spins to do. By default, do both spins
     if spin_index is not None:
@@ -180,7 +198,7 @@ def add_vb_cb(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
 
 
 def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
-                band_id_ref: int or str = 'VBM', spin_index: int = 0,
+                band_id_ref: 'int | str' = 'VBM', spin_index: int = 0,
                 force_align=False, silent=False):
     """Shift the bands so that a given eigenvalue is the same in both band structures.
 
@@ -225,7 +243,7 @@ def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
     if spin_index != 0 and spec_ref.nspins != 1:
         raise IndexError('Reference band structure only has 1 spins but second spin channel requested')
 
-    def _get_max_eigenvalue(spec_ref: Spectral.Spectral, band_id_ref: int or str):
+    def _get_max_eigenvalue(spec_ref: Spectral.Spectral, band_id_ref: 'int | str'):
         """Gets the maximum eigenvalue for a given band within the bandstructure"""
         if isinstance(band_id_ref, str):
             band_id_ref = band_id_ref.upper()
@@ -265,8 +283,8 @@ def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
             warnings.warn(errmsg + ' Use silent=True to surpress warnings')
 
     if spec.BandStructure.shape != spec_ref.BandStructure.shape:
-        errmsg = f'Ref. bandstructure has (nk, nb, ns)={spec_ref.BandStructure.shape()}' + \
-            f' but actual has {spec.BandStructure.shape()}.'
+        errmsg = f'Ref. bandstructure has (nk, nb, ns)={spec_ref.BandStructure.shape}' + \
+            f' but actual has {spec.BandStructure.shape}.'
         _warn_bs_mismatch(errmsg)
     elif spec.have_ncm != spec_ref.have_ncm:
         errmsg = f'Ref. bandstructure have_ncm={spec_ref.have_ncm}' + \
