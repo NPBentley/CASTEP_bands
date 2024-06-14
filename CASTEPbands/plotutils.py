@@ -163,7 +163,7 @@ def add_vb_cb(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
     if spec.nspins == 1:
         nelec = np.array([spec.electrons], dtype=int)
     else:
-        nelec = np.array([spec.no_up, spec.no_down], dtype=int)
+        nelec = np.array([spec.nup, spec.ndown], dtype=int)
 
     def _get_vb_cb(ns: int):
         """Get valence and conduction bands for each spin channel."""
