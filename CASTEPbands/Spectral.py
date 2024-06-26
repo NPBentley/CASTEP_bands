@@ -865,7 +865,7 @@ class Spectral:
         :param: species_and_orb: Indicate if a plot highlighting the majority orbital and species
         of a given band is wanted.
         '''
-
+        print(self.atoms)
         ns_gle = 0
         if spin_polarised:
             if spin_index[0] == 0:
@@ -929,7 +929,9 @@ class Spectral:
 
     def _plot_ncm_S_i(self,ax,quantisation_axis,linewidth):
         '''Function for plotting the S_{i} components result from a NCM calculation
+        :param ax : Contains the axis object for which the bands are plotted on
         :param quantisation_axis : determines the direction of the plotted spin component (Default : "z")
+        :param linewidth : Chooses the linewidth for the bandstructure plots.
         '''
         import matplotlib.collections as mcoll
         import matplotlib.path as mpath
@@ -954,7 +956,6 @@ class Spectral:
                 (1.0, 0.0, 0.0),
             )
         }
-
         cmap_ncm = LinearSegmentedColormap('ncm', cdict)
 
         #Determine the limiting values of the colormap based on the chosen quantisation direction.
@@ -979,11 +980,66 @@ class Spectral:
             self.colorline(self.kpoints, self.BandStructure[nb, :, 0], z[nb,:],plotting_axis=ax, cmap=cmap_ncm, norm=norm_ncm, linewidth=linewidth)
             ax.plot(self.kpoints, self.BandStructure[nb, :, 0], z[nb,:], linewidth=linewidth, alpha=0)
 
-
-
         #Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
         #plt.savefig('noncollinear.pdf')
 
+        return
+
+    def _plot_ncm_S(self, ax, quantisation_axis, linewidth):
+        '''Function for plotting the S vector from a NCM calculation.
+        :param ax : Contains the axis object for which the bands are plotted on
+        :param quantisation_axis : determines the direction of quantisation axis
+         chosen for the associated collinear calculation (Default : "z")
+        :param linewidth : Chooses the linewidth for the bandstructure plots.
+        '''
+        import matplotlib.collections as mcoll
+        import matplotlib.path as mpath
+        from matplotlib import colors
+        from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+        from matplotlib.lines import Line2D
+        from numpy.linalg import norm
+
+        #Consider normalising all the spin vectors (removes issue due to some of the unoccupied bands not
+        # being constrained to be normalised) NPBentley 25/06/24
+        self.spin_components = np.divide(self.spin_components,
+                                         np.repeat(norm(self.spin_components,ord=None,axis=2)[:, :, np.newaxis], 3, axis=2))
+
+        #Define quantisation axis in order to prove mapping between collinear and ncm calculations.
+        if quantisation_axis == 'x':
+            z=0
+            x=2
+            y=1
+        elif quantisation_axis == 'y':
+            z=1
+            x=0
+            y=2
+        else:
+            z=2
+            x=0
+            y=1
+
+        #Define an array of colours based on the desired mapping. #NPBentley 26/06/24
+        #In this case the component along the quantisation direction goes from blue to red and the
+        #components orthogonal to the quantisation direction are green.
+
+        rgb_colormap_test = np.zeros(np.shape(self.spin_components))
+        rgb_colormap_test[:, :, 0] = (self.spin_components[:, :, z] + 1)/2
+        #rgb_colormap_test[:, :, 1] = (self.spin_components[:, :, x] + self.spin_components[:, :, y] + 2) / 4
+        rgb_colormap_test[:, :, 1] = (np.abs(self.spin_components[:, :, x]) + np.abs(self.spin_components[:, :, y])) / 2
+        rgb_colormap_test[:, :, 2] = 1 - (self.spin_components[:, :, z] + 1)/2
+        cmap_ncvec = ListedColormap(rgb_colormap_test, name = 'ncm_vec')
+
+
+        #The colour map below maps spin components onto x, y and z respectively. NPBentley 26/06/24
+        #cmap_ncvec = ListedColormap((self.spin_components+1)/2, name = 'ncm_vec')
+
+        #Plot the bands using the defined color map
+        for nb in range(self.nbands):
+            self.colorline_rgb(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb, :, :], cmap= cmap_ncvec, plotting_axis=ax, linewidth=linewidth)
+            ax.plot(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb, :, :], linewidth=linewidth, alpha=0)
+
+        #Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
+        #plt.savefig('noncollinear.pdf')
         return
 
 
@@ -997,6 +1053,7 @@ class Spectral:
                 spin_up_color_hi='black',
                 spin_down_color_hi='black',
                 nc_spin=False,
+                nc_spin_component=False,
                 quantisation_axis='z',
                 pdos=False,
                 fontsize=20,
@@ -1044,8 +1101,11 @@ class Spectral:
         spin_down_color_hi : string
             mono colour for spin down channel (default : black)
         nc_spin : boolean
-            Plot the components of the spin vector resulting from a ncm
-            calculation to compare with a spin polarised calculation.
+            Plot the 3D spin vector resulting from a ncm calculation, using a colourmap defining red to blue
+            along the quantisation direction and green the amount off the quantisation direction.
+        nc_spin_components : boolean
+            Plot the chosen component of the spin vector resulting from a
+            ncm calculation to compare with a spin polarised calculation.
         quantisation_axis : string
             Choose which directional spin component should be plotted to compare with a collinear calculation.
         pdos : boolean
@@ -1259,8 +1319,11 @@ class Spectral:
                 if output_gle:
                     self._plot_gle(spin_polarised,spin_index)
             else:
-                self._plot_ncm_S_i(ax,quantisation_axis,linewidth)
-                plt.show()
+                if nc_spin_component:
+                    self._plot_ncm_S_i(ax,quantisation_axis,linewidth)
+                else:
+                    self._plot_ncm_S(ax,quantisation_axis,linewidth)
+                #plt.show()
 
         #now pdos is a thing
         else:
@@ -2015,7 +2078,31 @@ class Spectral:
             z = np.linspace(0.0, 1.0, len(x))
         z = np.asarray(z)
         segments = self.make_segments(x, y)
+
         lc = LineCollection(segments, array=z, cmap=cmap, norm=norm,
                               linewidth=linewidth, alpha=alpha)
+
+        plotting_axis.add_collection(lc)
+
+        return lc
+
+    def colorline_rgb(self, x, y, z=None, plotting_axis=None, cmap=plt.get_cmap('copper'),
+                  norm=plt.Normalize(0.0, 1.0), linewidth=3, alpha=1.0):
+        """
+        http://nbviewer.ipython.org/github/dpsanders/matplotlib-examples/blob/master/colorline.ipynb
+        http://matplotlib.org/examples/pylab_examples/multicolored_line.html
+        Plot a colored line with coordinates x and y
+        Optionally specify colors in the array z
+        Optionally specify a colormap, a norm function and a line width
+        """
+        from matplotlib.collections import LineCollection
+
+        segments = self.make_segments(x, y)
+
+        z_list = [tuple(row) for row in z.tolist()]
+
+        lc = LineCollection(segments, colors=z_list, linewidth=linewidth, alpha=alpha)
+        lc.set_array(np.arange(len(x)))
+
         plotting_axis.add_collection(lc)
         return lc
