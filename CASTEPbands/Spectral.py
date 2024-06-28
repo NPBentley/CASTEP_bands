@@ -1194,6 +1194,7 @@ class Spectral:
                 klim=None,
                 axes_only=False,
                 pdos_species=False,
+                pdos_both=False,
                 pdos_popn_select=[None, None],
                 band_ids=None,
                 band_colors=None,
@@ -1266,8 +1267,10 @@ class Spectral:
         axes_only : boolean
             Return the formatted band structure axes (including high symmetry lines if requested)
             but do not actually plot the band structure or density of states.
-        pdos_species : ndarray(dtype=int)
-            atoms (indexed from 0) to include in the partial density of states.
+        pdos_species : boolean
+            Use species projection rather than angular momentum when colouring the band structure by Mulliken
+        pdos_both : boolean
+            Include both orbital and species breakdown in the partial density of states.
         pdos_popn_select : ndarray
             population analysis
         band_ids : ndarray(dtype=int)
