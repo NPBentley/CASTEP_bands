@@ -679,12 +679,11 @@ class Spectral:
 
     def _pdos_read(self,
                    species_only=False,
+                   pdos_both=False,
                    popn_select=[None, None],
-                   species_and_orb=False,
                    orb_breakdown=False):
         ''' Internal function for reading the pdos_bin file. This contains all of the projected DOS from the Mulliken '''
-        # NPBentley: added species_and_orb, allowing for colour plotting by both species and orbital. 18/01/24
-
+        # NPB: added plotting with both species and orbital contributions to pdos. 29/06/24
         # NPBentley: added the orb_breakdown function, with the aim of splitting the orbitals up into suborbitals.
         # This is not currently fully implemented or tested. 26/02/24
 
@@ -712,11 +711,11 @@ class Spectral:
 
         kpoints = np.zeros((num_kpoints, 3))
         pdos_weights = np.zeros((num_popn_orb, max_eigenvalues, num_kpoints, num_spins))
-
+        pdos_weights_orb_spec = np.zeros((4*num_species, max_eigenvalues, num_kpoints,num_spins))
         pdos_orb_spec = np.zeros((num_species, 4, max_eigenvalues, num_kpoints, num_spins))
 
         # NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
-        # 4 corresponds to the
+        # 4 corresponds to the number of orbital types and 7 the max number of suborbital types.
         if orb_breakdown:
             pdos_suborb_spec = np.zeros((num_species, 4, 7, max_eigenvalues, num_kpoints, num_spins))
 
@@ -752,16 +751,11 @@ class Spectral:
 
             pdos_orb_spec[spec_ind, l_ind, :, :, :] = pdos_orb_spec[spec_ind, l_ind, :, :, :] + pdos_weights[i, :, :, :]
 
-        # Go through each kpoint, band and spin to find the species and orbital with highest occupancy.
-        # Then we can set it to 1 and all other weights to 0 in order to find the mode,
-        # i.e. corresponding species_orbital.
-        for nk in range(num_kpoints):
-            for nb in range(max_eigenvalues):
-                for ns in range(num_spins):
-                    max_spec, max_l = np.where(pdos_orb_spec[:, :, nb, nk, ns] == np.max(pdos_orb_spec[:, :, nb, nk, ns]))
+        #Save the weights for each of the species and orbitals before finding the dominant species and orbital for
+        #each point in the bandstructure.
+        if pdos_both:
+           pdos_weights_orb_spec = pdos_orb_spec
 
-                    pdos_orb_spec[:, :, nb, nk, ns] = 0
-                    pdos_orb_spec[max_spec[0], max_l[0], nb, nk, ns] = 1
 
         # Sum over all the kpoints of pdos_orb_spec, in order to give the weights for the given band
         # across the chosen k-point path.
@@ -777,10 +771,6 @@ class Spectral:
 
                 band_char[0, nb, ns] = max_spec[0] + 1  # Define species
                 band_char[1, nb, ns] = max_l[0]  # Define orbital
-
-        # Save the band_char array for when plotting by species and orbital.
-        if species_and_orb:
-            self.band_char = band_char
 
         # Now filter based on user input
         popn_bands = np.zeros((max_eigenvalues, num_spins), dtype=bool)
@@ -799,6 +789,15 @@ class Spectral:
             for i in range(0, num_species):
                 loc = np.where(orbital_species == i + 1)[0]
                 pdos_weights_sum[i, :, :, :] = np.sum(pdos_weights[loc, :, :, :], axis=0)
+
+        elif pdos_both:
+            num_species = len(np.unique(orbital_species))
+            num_orbitals = 4
+            num_total = num_species * num_orbitals
+            pdos_weights_sum = np.zeros((num_total, max_eigenvalues, num_kpoints, num_spins))
+            for i in range(0, num_species):
+                for j in range(0, num_orbitals):
+                    pdos_weights_sum[num_orbitals*i + j, :, :, :] = pdos_weights_orb_spec[i, j, :, :, :]
 
         else:
             num_orbitals = 4
@@ -863,9 +862,9 @@ class Spectral:
 
                 pdos_suborb_spec[spec_ind, l_ind, orb_mapping.get(orb_lab), :, :, :] = pdos_suborb_spec[spec_ind, l_ind, orb_mapping.get(orb_lab), :, :, :] \
                     + self.raw_pdos[i, :, :, :]
-            # NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array
-            # as has been done when the species_and_orb option is used. It would also be useful to integrate this in with the dos plotting, as it
-            # likely be more useful to plot suborbitals in dos plots rather than in bands. 26/02/24
+            # NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array.
+            # It would also be useful to integrate this in with the dos plotting, as it
+            # likely be more useful to plot suborbitals in dos plots rather than in bands. 10/07/24
 
     def _gradient_read(self):
         ''' Internal function for reading the gradient file .dome_bin. This is used in the calculation of the adaptive broadening. If using  cite Jonathan R. Yates, Xinjie Wang, David Vanderbilt, and Ivo Souza
@@ -981,13 +980,11 @@ class Spectral:
         labels = labels
         return labels
 
-    def _plot_gle(self, spin_polarised=False, spin_index=[0], species_and_orb=False):
+    def _plot_gle(self, spin_polarised=False, spin_index=[0]):
         '''Function for getting data into a GLE readable format and producing the template for a gle input file so that it can be used to produce
         band structures.
         :param: spin_polarised: Indicate if the system is spin polarised or not.
         :param: spin_index: Indicates spin component desired for plotting.
-        :param: species_and_orb: Indicate if a plot highlighting the majority orbital and species
-        of a given band is wanted.
         '''
         print(self.atoms)
         ns_gle = 0
@@ -1003,9 +1000,6 @@ class Spectral:
         else:
             filename = "gle_bands"
             gle_color = "black"
-
-        if species_and_orb:
-            filename = filename + "_specorb"
 
         gle_data = np.zeros((len(self.kpoints), self.nbands + 1))
         gle_data[:, 0] = self.kpoints
@@ -1036,16 +1030,9 @@ class Spectral:
         gle_graph.write('\n   yaxis nticks 5 min -2 max 2')
         gle_graph.write('\n   ysubticks off')
         gle_graph.write('\n   data "' + filename + '.dat"')
-        if not species_and_orb:
-            gle_graph.write('\n   for alpha = 1 to ' + str(self.nbands))
-            gle_graph.write('\n      d[alpha] line color ' + gle_color)
-            gle_graph.write('\n   next alpha')
-        else:
-            for i in range(self.nbands):
-                gle_graph.write(
-                    '\n   d' + str(i) + ' line color spec'
-                    + str(int(self.band_char[0, i, 0])) + '_orb'
-                    + str(int(self.band_char[1, i, 0])))
+        gle_graph.write('\n   for alpha = 1 to ' + str(self.nbands))
+        gle_graph.write('\n      d[alpha] line color ' + gle_color)
+        gle_graph.write('\n   next alpha')
         gle_graph.write('\n   draw graph_Fermi')
         gle_graph.write('\nend graph')
         gle_graph.close()
@@ -1199,7 +1186,6 @@ class Spectral:
                 band_ids=None,
                 band_colors=None,
                 output_gle=False,
-                species_and_orb=False,
                 orb_breakdown=False,
                 mark_gap=False,
                 mark_gap_color=None,
@@ -1279,9 +1265,6 @@ class Spectral:
             colours to use when plotting the bands according to band_ids.
         output_gle : Boolean
             Produce the output ".dat" and ".gle" files for plotting bandstructures using GLE.
-        species_and_orb : Boolean
-            Produce the output ".dat" and ".gle" files for producing a plot where the bands are
-            colour coded by majority orbital and species.
         orb_breakdown : Boolean
             Identify the bands by suborbital, ready for plotting (when NPBentley gets around to
             implementing it).
@@ -1577,7 +1560,7 @@ class Spectral:
         # now pdos is a thing
         else:
             # calculate the pdos if needed
-            self._pdos_read(pdos_species, pdos_popn_select, species_and_orb, orb_breakdown)
+            self._pdos_read(pdos_species, pdos_both, pdos_popn_select, orb_breakdown)
 
             # first do the plotting with the popn_select
             if pdos_popn_select[0] is not None:
@@ -1606,9 +1589,6 @@ class Spectral:
                         else:
                             raise Exception("Highlighting by population analysis unavailable for non-mono plots.")
 
-            elif (species_and_orb and output_gle):
-                self._plot_gle(spin_polarised, spin_index, species_and_orb)
-
             else:
                 import matplotlib.collections as mcoll
                 import matplotlib.path as mpath
@@ -1617,13 +1597,17 @@ class Spectral:
                 from matplotlib.lines import Line2D
 
                 # Define the colours we'll use for the plotting
-                n_colors = cycle(['blue', 'red', 'green', 'black', 'purple', 'orange', 'yellow', 'cyan'])
+                n_colors = cycle(['teal', 'green', 'yellow', 'black', 'pink', 'orange', 'red', 'black',
+                                  'cyan','brown','blue','black'])
+                #n_colors = cycle(['blue','red','green'])
 
                 if pdos_species:
                     n_cat = len(self.atoms)
+                elif pdos_both:
+                    n_cat = len(self.atoms) * 4
+                    #Now works, issue was in the _read_pdos function, see comments there NPB 29/06/24
                 else:
                     n_cat = 4
-
                 basis = []
                 for i in range(n_cat):
                     basis.append(np.array(colors.to_rgba(next(n_colors))))
@@ -1657,10 +1641,13 @@ class Spectral:
                     custom_lines.append(Line2D([0], [0], color=basis[i], lw=3))
                     if pdos_species:
                         labels.append(self.atoms[i])
+                    elif pdos_both:
+                        label_orb = ["(s)", "(p)", "(d)", "(f)"]
+                        labels.append(self.atoms[i//4]+label_orb[i%4])
                     else:
                         labels = ["s", "p", "d", "f"]
 
-                ax.legend(custom_lines, labels, fontsize=fontsize)
+                ax.legend(custom_lines, labels, fontsize=fontsize,bbox_to_anchor=(1.17,1.15))
 
         # Mark the band gap on the plot V Ravindran 31/04/2024
         if mark_gap is True:
