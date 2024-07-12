@@ -55,6 +55,9 @@ class Spectral:
     high_sym_spacegroup
          Get the high-symmetry points from the space group rather than just the
           geometry/lattice parameters of the computational cell (Default : True)
+    use_cell:
+         Cell file containing structure used for band structure
+         (Default : <seed>.cell)
 
     Methods
     ----------
@@ -82,7 +85,8 @@ class Spectral:
                  convert_to_eV=True,
                  flip_spins=False,
                  have_ncm=False,
-                 high_sym_spacegroup=True):
+                 high_sym_spacegroup=True,
+                 use_cell=None):
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
         self.start_time = time.time()
         self.pdos_has_read = False
@@ -407,10 +411,17 @@ class Spectral:
         # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
         # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
         # CASTEP_COMMAND environmental variable is set which will slow down the read.                  V Ravindran CELL_READ 01/05/2024
-        cell = io.read(seed + ".cell",
-                       # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
-                       calculator_args={"keyword_tolerance": 3}
-                       )
+        if use_cell is not None:
+            # Ability to set use a different cellfile USE_CELL V Ravindran 12/07/2024
+            cell = io.read(use_cell.strip(),
+                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                           calculator_args={"keyword_tolerance": 3}
+                           )
+        else:
+            cell = io.read(seed + ".cell",
+                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                           calculator_args={"keyword_tolerance": 3}
+                           )
 
         # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
         if high_sym_spacegroup is True:
@@ -1573,12 +1584,12 @@ class Spectral:
                         # No colour specified so let pick from rcParams
                         line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
                                            linestyle=linestyle, linewidth=linewidth,
-                                           label = band_labels[nb,ns]
+                                           label=band_labels[nb, ns]
                                            )
                     else:
                         line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
                                            linestyle=linestyle, linewidth=linewidth, color=line_color,
-                                           label = band_labels[nb,ns]
+                                           label=band_labels[nb, ns]
                                            )
 
                     # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
