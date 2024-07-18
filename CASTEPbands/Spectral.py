@@ -509,7 +509,7 @@ class Spectral:
 
         return
 
-    def get_band_info(self, silent=False, bandwidth=None, band_order='F', ret_vbm_cbm=False):
+    def get_band_info(self, silent=False, bandwidth=None, band_order='C', ret_vbm_cbm=False):
         """Get a summary of the band structure.
 
         Author: V Ravindran (30/01/2024)
@@ -526,7 +526,7 @@ class Spectral:
         band_order : string
             Type of array ordering to use when deciding which band to use for band width
             measurements. CASTEP uses Fortran ordering (arrays start from 1).
-            (default : 'F')
+            (default : 'C')
         ret_vbm_cbm : boolean
             Return the index of the kpoint required to get the valence band maximum and conduction band minimum
             together with the respective eigenvalues.
