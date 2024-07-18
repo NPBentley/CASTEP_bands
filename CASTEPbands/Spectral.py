@@ -58,6 +58,8 @@ class Spectral:
     use_cell:
          Cell file containing structure used for band structure
          (Default : <seed>.cell)
+    vec_spin : boolean
+        The .bands file contains the spin components, S_{i}, from a calculation with NCM (Default : False)
 
     Methods
     ----------
@@ -86,7 +88,8 @@ class Spectral:
                  flip_spins=False,
                  have_ncm=False,
                  high_sym_spacegroup=True,
-                 use_cell=None):
+                 use_cell=None,
+                 vec_spin=False):
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
         self.start_time = time.time()
         self.pdos_has_read = False
@@ -182,6 +185,8 @@ class Spectral:
             self.occ = 2
 
         band_structure = np.zeros((max_eig, no_kpoints, no_spins))  # bands, kpt, spin
+        if vec_spin:
+            spin_components = np.zeros((max_eig, no_kpoints,3))
 
         kpt_weights = np.zeros(no_kpoints)
 
@@ -206,15 +211,28 @@ class Spectral:
             kpoint_list.append(vec)
 
         # fill up the arrays
-        for k in range(0, no_kpoints):
-            if no_spins == 1:
-                ind = 9 + k * no_eigen + 2 * (k + 1)
-                band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
+        if not vec_spin:
+            for k in range(0, no_kpoints):
+                if no_spins == 1:
+                    ind = 9 + k * no_eigen + 2 * (k + 1)
+                    band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
 
-            if no_spins == 2:
-                ind = 9 + k * (no_eigen + no_eigen_2 + 1) + 2 * (k + 1)
-                band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
-                band_structure[:, k, 1] = eV * np.array([float(i) for i in lines[ind + no_eigen + 1:ind + no_eigen + 1 + no_eigen_2]])
+                if no_spins == 2:
+                    ind = 9 + k * (no_eigen + no_eigen_2 + 1) + 2 * (k + 1)
+                    band_structure[:, k, 0] = eV * np.array([float(i) for i in lines[ind:ind + no_eigen]])
+                    band_structure[:, k, 1] = eV * np.array([float(i) for i in lines[ind + no_eigen + 1:ind + no_eigen + 1 + no_eigen_2]])
+        else:
+            if no_spins == 1:
+                for k in range(0, no_kpoints):
+                    ind = 9 + k * no_eigen + 2 * (k + 1)
+                    band_structure[:, k, 0] = eV * np.array([float(i.split()[0]) for i in lines[ind:ind + no_eigen]])
+
+                    spin_components[:, k, 0] = np.array([float(i.split()[1]) for i in lines[ind:ind + no_eigen]])
+                    spin_components[:, k, 1] = np.array([float(i.split()[2]) for i in lines[ind:ind + no_eigen]])
+                    spin_components[:, k, 2] = np.array([float(i.split()[3]) for i in lines[ind:ind + no_eigen]])
+
+            else:
+                raise ValueError("NCM calculations produce a .bands file with only a single spin channel.")
 
         # Get valence and conduction bands (for up spin if spin polarised)
         if no_spins == 1:
@@ -273,12 +291,21 @@ class Spectral:
         if no_spins == 2 and flip_spins:
             band_structure[:, :, [0, 1]] = band_structure[:, :, [1, 0]]
 
+        if vec_spin:
+            for nb in range(max_eig):
+                spin_components[nb, :, 0] = spin_components[nb, :, 0][sort_array]
+                spin_components[nb, :, 1] = spin_components[nb, :, 1][sort_array]
+                spin_components[nb, :, 2] = spin_components[nb, :, 2][sort_array]
+
+
         self.kpoints = kpoint_array
         self.kpoint_list = kpoint_list
         self.kpt_weights = kpt_weights[sort_array]
         self.BandStructure = band_structure
         self.nbands = max_eig
         self.nspins = no_spins
+        if vec_spin:
+            self.spin_components=spin_components
 
         # do the high symmetry points
         k_ticks = []
@@ -519,7 +546,9 @@ class Spectral:
         # ... and the Fermi energy
         self.Ef -= eng_shift
 
-    def get_band_info(self, silent=False, bandwidth=None, band_order='F', ret_vbm_cbm=False):
+        return
+
+    def get_band_info(self, silent=False, bandwidth=None, band_order='C', ret_vbm_cbm=False):
         """Get a summary of the band structure.
 
         Author: V Ravindran (30/01/2024)
@@ -536,7 +565,7 @@ class Spectral:
         band_order : string
             Type of array ordering to use when deciding which band to use for band width
             measurements. CASTEP uses Fortran ordering (arrays start from 1).
-            (default : 'F')
+            (default : 'C')
         ret_vbm_cbm : boolean
             Return the index of the kpoint required to get the valence band maximum and conduction band minimum
             together with the respective eigenvalues.
@@ -692,12 +721,11 @@ class Spectral:
 
     def _pdos_read(self,
                    species_only=False,
+                   pdos_both=False,
                    popn_select=[None, None],
-                   species_and_orb=False,
                    orb_breakdown=False):
         ''' Internal function for reading the pdos_bin file. This contains all of the projected DOS from the Mulliken '''
-        # NPBentley: added species_and_orb, allowing for colour plotting by both species and orbital. 18/01/24
-
+        # NPB: added plotting with both species and orbital contributions to pdos. 29/06/24
         # NPBentley: added the orb_breakdown function, with the aim of splitting the orbitals up into suborbitals.
         # This is not currently fully implemented or tested. 26/02/24
 
@@ -725,11 +753,11 @@ class Spectral:
 
         kpoints = np.zeros((num_kpoints, 3))
         pdos_weights = np.zeros((num_popn_orb, max_eigenvalues, num_kpoints, num_spins))
-
+        pdos_weights_orb_spec = np.zeros((4*num_species, max_eigenvalues, num_kpoints,num_spins))
         pdos_orb_spec = np.zeros((num_species, 4, max_eigenvalues, num_kpoints, num_spins))
 
         # NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
-        # 4 corresponds to the
+        # 4 corresponds to the number of orbital types and 7 the max number of suborbital types.
         if orb_breakdown:
             pdos_suborb_spec = np.zeros((num_species, 4, 7, max_eigenvalues, num_kpoints, num_spins))
 
@@ -765,16 +793,11 @@ class Spectral:
 
             pdos_orb_spec[spec_ind, l_ind, :, :, :] = pdos_orb_spec[spec_ind, l_ind, :, :, :] + pdos_weights[i, :, :, :]
 
-        # Go through each kpoint, band and spin to find the species and orbital with highest occupancy.
-        # Then we can set it to 1 and all other weights to 0 in order to find the mode,
-        # i.e. corresponding species_orbital.
-        for nk in range(num_kpoints):
-            for nb in range(max_eigenvalues):
-                for ns in range(num_spins):
-                    max_spec, max_l = np.where(pdos_orb_spec[:, :, nb, nk, ns] == np.max(pdos_orb_spec[:, :, nb, nk, ns]))
+        #Save the weights for each of the species and orbitals before finding the dominant species and orbital for
+        #each point in the bandstructure.
+        if pdos_both:
+            pdos_weights_orb_spec = pdos_orb_spec
 
-                    pdos_orb_spec[:, :, nb, nk, ns] = 0
-                    pdos_orb_spec[max_spec[0], max_l[0], nb, nk, ns] = 1
 
         # Sum over all the kpoints of pdos_orb_spec, in order to give the weights for the given band
         # across the chosen k-point path.
@@ -790,10 +813,6 @@ class Spectral:
 
                 band_char[0, nb, ns] = max_spec[0] + 1  # Define species
                 band_char[1, nb, ns] = max_l[0]  # Define orbital
-
-        # Save the band_char array for when plotting by species and orbital.
-        if species_and_orb:
-            self.band_char = band_char
 
         # Now filter based on user input
         popn_bands = np.zeros((max_eigenvalues, num_spins), dtype=bool)
@@ -812,6 +831,15 @@ class Spectral:
             for i in range(0, num_species):
                 loc = np.where(orbital_species == i + 1)[0]
                 pdos_weights_sum[i, :, :, :] = np.sum(pdos_weights[loc, :, :, :], axis=0)
+
+        elif pdos_both:
+            num_species = len(np.unique(orbital_species))
+            num_orbitals = 4
+            num_total = num_species * num_orbitals
+            pdos_weights_sum = np.zeros((num_total, max_eigenvalues, num_kpoints, num_spins))
+            for i in range(0, num_species):
+                for j in range(0, num_orbitals):
+                    pdos_weights_sum[num_orbitals*i + j, :, :, :] = pdos_weights_orb_spec[i, j, :, :, :]
 
         else:
             num_orbitals = 4
@@ -876,9 +904,9 @@ class Spectral:
 
                 pdos_suborb_spec[spec_ind, l_ind, orb_mapping.get(orb_lab), :, :, :] = pdos_suborb_spec[spec_ind, l_ind, orb_mapping.get(orb_lab), :, :, :] \
                     + self.raw_pdos[i, :, :, :]
-            # NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array
-            # as has been done when the species_and_orb option is used. It would also be useful to integrate this in with the dos plotting, as it
-            # likely be more useful to plot suborbitals in dos plots rather than in bands. 26/02/24
+            # NPBentley - this function now needs the functionality to find the dominant suborbital for each band and an associated character array.
+            # It would also be useful to integrate this in with the dos plotting, as it
+            # likely be more useful to plot suborbitals in dos plots rather than in bands. 10/07/24
 
     def _gradient_read(self):
         ''' Internal function for reading the gradient file .dome_bin. This is used in the calculation of the adaptive broadening. If using  cite Jonathan R. Yates, Xinjie Wang, David Vanderbilt, and Ivo Souza
@@ -994,15 +1022,13 @@ class Spectral:
         labels = labels
         return labels
 
-    def _plot_gle(self, spin_polarised=False, spin_index=[0], species_and_orb=False):
+    def _plot_gle(self, spin_polarised=False, spin_index=[0]):
         '''Function for getting data into a GLE readable format and producing the template for a gle input file so that it can be used to produce
         band structures.
         :param: spin_polarised: Indicate if the system is spin polarised or not.
         :param: spin_index: Indicates spin component desired for plotting.
-        :param: species_and_orb: Indicate if a plot highlighting the majority orbital and species
-        of a given band is wanted.
         '''
-
+        print(self.atoms)
         ns_gle = 0
         if spin_polarised:
             if spin_index[0] == 0:
@@ -1016,9 +1042,6 @@ class Spectral:
         else:
             filename = "gle_bands"
             gle_color = "black"
-
-        if species_and_orb:
-            filename = filename + "_specorb"
 
         gle_data = np.zeros((len(self.kpoints), self.nbands + 1))
         gle_data[:, 0] = self.kpoints
@@ -1049,16 +1072,9 @@ class Spectral:
         gle_graph.write('\n   yaxis nticks 5 min -2 max 2')
         gle_graph.write('\n   ysubticks off')
         gle_graph.write('\n   data "' + filename + '.dat"')
-        if not species_and_orb:
-            gle_graph.write('\n   for alpha = 1 to ' + str(self.nbands))
-            gle_graph.write('\n      d[alpha] line color ' + gle_color)
-            gle_graph.write('\n   next alpha')
-        else:
-            for i in range(self.nbands):
-                gle_graph.write(
-                    '\n   d' + str(i) + ' line color spec'
-                    + str(int(self.band_char[0, i, 0])) + '_orb'
-                    + str(int(self.band_char[1, i, 0])))
+        gle_graph.write('\n   for alpha = 1 to ' + str(self.nbands))
+        gle_graph.write('\n      d[alpha] line color ' + gle_color)
+        gle_graph.write('\n   next alpha')
         gle_graph.write('\n   draw graph_Fermi')
         gle_graph.write('\nend graph')
         gle_graph.close()
@@ -1221,6 +1237,121 @@ class Spectral:
         if return_actors is True:
             return gap_actors
 
+    def _plot_ncm_S_i(self,ax,quantisation_axis,linewidth):
+        '''Function for plotting the S_{i} components result from a NCM calculation
+        :param ax : Contains the axis object for which the bands are plotted on
+        :param quantisation_axis : determines the direction of the plotted spin component (Default : "z")
+        :param linewidth : Chooses the linewidth for the bandstructure plots.
+        '''
+        import matplotlib.collections as mcoll
+        import matplotlib.path as mpath
+        from matplotlib import colors
+        from matplotlib.colors import LinearSegmentedColormap
+        from matplotlib.lines import Line2D
+
+        #Define the color dictionary and associated color map required to match the colors between
+        #the nc output and the result of collinear calculations. NPBentley 05/04/24
+
+        cdict = {
+            'red': (
+                (0.0, 0.0, 0.0),
+                (1.0, 1.0, 1.0),
+            ),
+            'green': (
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+            ),
+            'blue': (
+                (0.0, 1.0, 1.0),
+                (1.0, 0.0, 0.0),
+            )
+        }
+        cmap_ncm = LinearSegmentedColormap('ncm', cdict)
+
+        #Determine the limiting values of the colormap based on the chosen quantisation direction.
+        if quantisation_axis == 'x':
+            #print("x")
+            cvals = [np.min(self.spin_components[:,:,0]),np.max(self.spin_components[:,:,0])]
+            z = self.spin_components[:,:,0]
+        elif quantisation_axis == 'y':
+            #print("y")
+            cvals = [np.min(self.spin_components[:, :, 1]), np.max(self.spin_components[:, :, 1])]
+            z = self.spin_components[:, :, 1]
+        else:
+            #print("z")
+            cvals = [np.min(self.spin_components[:, :, 2]), np.max(self.spin_components[:, :, 2])]
+            z = self.spin_components[:, :, 2]
+
+        norm_ncm = plt.Normalize(min(cvals),max(cvals))
+
+        #Plot the bands using the defined color map
+        for nb in range(self.nbands):
+
+            self.colorline(self.kpoints, self.BandStructure[nb, :, 0], z[nb,:],plotting_axis=ax, cmap=cmap_ncm, norm=norm_ncm, linewidth=linewidth)
+            ax.plot(self.kpoints, self.BandStructure[nb, :, 0], z[nb,:], linewidth=linewidth, alpha=0)
+
+        #Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
+        #plt.savefig('noncollinear.pdf')
+
+        return
+
+    def _plot_ncm_S(self, ax, quantisation_axis, linewidth):
+        '''Function for plotting the S vector from a NCM calculation.
+        :param ax : Contains the axis object for which the bands are plotted on
+        :param quantisation_axis : determines the direction of quantisation axis
+         chosen for the associated collinear calculation (Default : "z")
+        :param linewidth : Chooses the linewidth for the bandstructure plots.
+        '''
+        import matplotlib.collections as mcoll
+        import matplotlib.path as mpath
+        from matplotlib import colors
+        from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+        from matplotlib.lines import Line2D
+        from numpy.linalg import norm
+
+        #Consider normalising all the spin vectors (removes issue due to some of the unoccupied bands not
+        # being constrained to be normalised) NPBentley 25/06/24
+        self.spin_components = np.divide(self.spin_components,
+                                         np.repeat(norm(self.spin_components,ord=None,axis=2)[:, :, np.newaxis], 3, axis=2))
+
+        #Define quantisation axis in order to prove mapping between collinear and ncm calculations.
+        if quantisation_axis == 'x':
+            z=0
+            x=2
+            y=1
+        elif quantisation_axis == 'y':
+            z=1
+            x=0
+            y=2
+        else:
+            z=2
+            x=0
+            y=1
+
+        #Define an array of colours based on the desired mapping. #NPBentley 26/06/24
+        #In this case the component along the quantisation direction goes from blue to red and the
+        #components orthogonal to the quantisation direction are green.
+
+        rgb_colormap_test = np.zeros(np.shape(self.spin_components))
+        rgb_colormap_test[:, :, 0] = (self.spin_components[:, :, z] + 1)/2
+        #rgb_colormap_test[:, :, 1] = (self.spin_components[:, :, x] + self.spin_components[:, :, y] + 2) / 4
+        rgb_colormap_test[:, :, 1] = (np.abs(self.spin_components[:, :, x]) + np.abs(self.spin_components[:, :, y])) / 2
+        rgb_colormap_test[:, :, 2] = 1 - (self.spin_components[:, :, z] + 1)/2
+        cmap_ncvec = ListedColormap(rgb_colormap_test, name = 'ncm_vec')
+
+
+        #The colour map below maps spin components onto x, y and z respectively. NPBentley 26/06/24
+        #cmap_ncvec = ListedColormap((self.spin_components+1)/2, name = 'ncm_vec')
+
+        #Plot the bands using the defined color map
+        for nb in range(self.nbands):
+            self.colorline_rgb(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb, :, :], cmap= cmap_ncvec, plotting_axis=ax, linewidth=linewidth)
+            ax.plot(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb, :, :], linewidth=linewidth, alpha=0)
+
+        #Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
+        #plt.savefig('noncollinear.pdf')
+        return
+
     def plot_bs(self,
                 ax,
                 mono=False,
@@ -1230,6 +1361,9 @@ class Spectral:
                 spin_down_color='blue',
                 spin_up_color_hi='black',
                 spin_down_color_hi='black',
+                nc_spin=False,
+                nc_spin_component=False,
+                quantisation_axis='z',
                 pdos=False,
                 fontsize=20,
                 cmap='tab20c',
@@ -1245,11 +1379,11 @@ class Spectral:
                 klim=None,
                 axes_only=False,
                 pdos_species=False,
+                pdos_both=False,
                 pdos_popn_select=[None, None],
                 band_ids=None,
                 band_colors=None,
                 output_gle=False,
-                species_and_orb=False,
                 orb_breakdown=False,
                 mark_gap=False,
                 mark_gap_color=None,
@@ -1279,6 +1413,14 @@ class Spectral:
             mono colour for spin up channel (default : black)
         spin_down_color_hi : string
             mono colour for spin down channel (default : black)
+        nc_spin : boolean
+            Plot the 3D spin vector resulting from a ncm calculation, using a colourmap defining red to blue
+            along the quantisation direction and green the amount off the quantisation direction.
+        nc_spin_components : boolean
+            Plot the chosen component of the spin vector resulting from a
+            ncm calculation to compare with a spin polarised calculation.
+        quantisation_axis : string
+            Choose which directional spin component should be plotted to compare with a collinear calculation.
         pdos : boolean
             Perform Mulliken projections to project out bands by the orbitals.
         fontsize : integer
@@ -1309,8 +1451,10 @@ class Spectral:
         axes_only : boolean
             Return the formatted band structure axes (including high symmetry lines if requested)
             but do not actually plot the band structure or density of states.
-        pdos_species : ndarray(dtype=int)
-            atoms (indexed from 0) to include in the partial density of states.
+        pdos_species : boolean
+            Use species projection rather than angular momentum when colouring the band structure by Mulliken
+        pdos_both : boolean
+            Include both orbital and species breakdown in the partial density of states.
         pdos_popn_select : ndarray
             population analysis
         band_ids : ndarray(dtype=int)
@@ -1319,9 +1463,6 @@ class Spectral:
             colours to use when plotting the bands according to band_ids.
         output_gle : Boolean
             Produce the output ".dat" and ".gle" files for plotting bandstructures using GLE.
-        species_and_orb : Boolean
-            Produce the output ".dat" and ".gle" files for producing a plot where the bands are
-            colour coded by majority orbital and species.
         orb_breakdown : Boolean
             Identify the bands by suborbital, ready for plotting (when NPBentley gets around to
             implementing it).
@@ -1563,60 +1704,63 @@ class Spectral:
             # so we can add them to legend when labelling. -  band_labels V Ravindran 12/04/2024
             # custom_lines = []
             # l_labels = []  # local copy of band_labels as a list
-            for nb in range(self.nbands):
-                for ns in spin_index:
+            if not nc_spin:
+                for nb in range(self.nbands):
+                    for ns in spin_index:
+                        if not band_ids_mask[nb, ns]:
+                            # If the band is not within the mask,
+                            # then do not plot it and skip to the next band.
+                            continue
 
-                    if not band_ids_mask[nb, ns]:
-                        # If the band is not within the mask,
-                        # then do not plot it and skip to the next band.
-                        continue
+                        # Updated colour selection V Ravindran 14/04/2024
+                        line_color = ''
+                        if mono:
+                            line_color = mono_color
+                        elif band_colors is not None:
+                            line_color = band_colors[nb, ns]
+                        elif spin_polarised:
+                            line_color = spin_colors[ns]
 
-                    # Updated colour selection V Ravindran 14/04/2024
-                    line_color = ''
-                    if mono:
-                        line_color = mono_color
-                    elif band_colors is not None:
-                        line_color = band_colors[nb, ns]
-                    elif spin_polarised:
-                        line_color = spin_colors[ns]
+                        if line_color == '':
+                            # No colour specified so let pick from rcParams
+                            line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth)
+                        else:
+                            line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
+                                           linestyle=linestyle, linewidth=linewidth, color=line_color)
 
-                    if line_color == '':
-                        # No colour specified so let pick from rcParams
-                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth,
-                                           label=band_labels[nb, ns]
-                                           )
-                    else:
-                        line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth, color=line_color,
-                                           label=band_labels[nb, ns]
-                                           )
+                        # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
+                            # V Ravindran: The check further up should have caught the fact that band_ids
+                            # needs to be supplied together with band_labels.
+                            # If no band_labels were supplied, an empty array of the shape (nbands, len(spin_index))
+                            # will have been created with values initialised to None
+                            # and this if statement should be bypassed.
+                            # custom_lines.append(line)
+                            # l_labels.append(band_labels[nb, ns])
 
-                    # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
-                        # V Ravindran: The check further up should have caught the fact that band_ids
-                        # needs to be supplied together with band_labels.
-                        # If no band_labels were supplied, an empty array of the shape (nbands, len(spin_index))
-                        # will have been created with values initialised to None
-                        # and this if statement should be bypassed.
-                        # custom_lines.append(line)
-                        # l_labels.append(band_labels[nb, ns])
+                # It's easier to add the legend using matplotlib manually at the end  V Ravindran BS_LEGEND 10/05/2024
+                # after calling the plot_bs method rather than returning the lines    V Ravindran BS_LEGEND 10/05/2024
+                # and attempting to create the legend manually.                       V Ravindran BS_LEGEND 10/05/2024
+                # if band_labels is not None:
+                    # DEPRECIATED Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
+                    # ax.legend(custom_lines, l_labels, loc=legend_loc)
+                    # Return the lines and labels so the user can customise the legend how they wish
+                    # return custom_lines
 
-            # It's easier to add the legend using matplotlib manually at the end  V Ravindran BS_LEGEND 10/05/2024
-            # after calling the plot_bs method rather than returning the lines    V Ravindran BS_LEGEND 10/05/2024
-            # and attempting to create the legend manually.                       V Ravindran BS_LEGEND 10/05/2024
-            # if band_labels is not None:
-                # DEPRECIATED Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
-                # ax.legend(custom_lines, l_labels, loc=legend_loc)
-                # Return the lines and labels so the user can customise the legend how they wish
-                # return custom_lines
+                if output_gle:
+                    self._plot_gle(spin_polarised, spin_index)
 
-            if output_gle:
-                self._plot_gle(spin_polarised, spin_index)
+            else:
+                if nc_spin_component:
+                    self._plot_ncm_S_i(ax, quantisation_axis,linewidth)
+                else:
+                    self._plot_ncm_S(ax, quantisation_axis,linewidth)
+                #plt.show()
 
         # now pdos is a thing
         else:
             # calculate the pdos if needed
-            self._pdos_read(pdos_species, pdos_popn_select, species_and_orb, orb_breakdown)
+            self._pdos_read(pdos_species, pdos_both, pdos_popn_select, orb_breakdown)
 
             # first do the plotting with the popn_select
             if pdos_popn_select[0] is not None:
@@ -1645,9 +1789,6 @@ class Spectral:
                         else:
                             raise Exception("Highlighting by population analysis unavailable for non-mono plots.")
 
-            elif (species_and_orb and output_gle):
-                self._plot_gle(spin_polarised, spin_index, species_and_orb)
-
             else:
                 import matplotlib.collections as mcoll
                 import matplotlib.path as mpath
@@ -1656,47 +1797,17 @@ class Spectral:
                 from matplotlib.lines import Line2D
 
                 # Define the colours we'll use for the plotting
-                n_colors = cycle(['blue', 'red', 'green', 'black', 'purple', 'orange', 'yellow', 'cyan'])
-
-                def make_segments(x, y):
-                    """
-                    Create list of line segments from x and y coordinates, in the correct format
-                    for LineCollection: an array of the form numlines x (points per line) x 2 (x
-                    and y) array
-                    """
-
-                    points = np.array([x, y]).T.reshape(-1, 1, 2)
-
-                    segments = np.concatenate([points[:-1], points[1:]], axis=1)
-
-                    return segments
-
-                def colorline(
-                        x, y, z=None, cmap=plt.get_cmap('copper'), norm=plt.Normalize(0.0, 1.0),
-                        linewidth=3, alpha=1.0):
-                    """
-                    http://nbviewer.ipython.org/github/dpsanders/matplotlib-examples/blob/master/colorline.ipynb
-                    http://matplotlib.org/examples/pylab_examples/multicolored_line.html
-                    Plot a colored line with coordinates x and y
-                    Optionally specify colors in the array z
-                    Optionally specify a colormap, a norm function and a line width
-                    """
-
-                    # Default colors equally spaced on [0,1]:
-                    if z is None:
-                        z = np.linspace(0.0, 1.0, len(x))
-                    z = np.asarray(z)
-                    segments = make_segments(x, y)
-                    lc = mcoll.LineCollection(segments, array=z, cmap=cmap, norm=norm,
-                                              linewidth=linewidth, alpha=alpha)
-                    ax.add_collection(lc)
-                    return lc
+                n_colors = cycle(['teal', 'green', 'yellow', 'black', 'pink', 'orange', 'red', 'black',
+                                  'cyan','brown','blue','black'])
+                #n_colors = cycle(['blue','red','green'])
 
                 if pdos_species:
                     n_cat = len(self.atoms)
+                elif pdos_both:
+                    n_cat = len(self.atoms) * 4
+                    #Now works, issue was in the _read_pdos function, see comments there NPB 29/06/24
                 else:
                     n_cat = 4
-
                 basis = []
                 for i in range(n_cat):
                     basis.append(np.array(colors.to_rgba(next(n_colors))))
@@ -1721,7 +1832,7 @@ class Spectral:
                             cmap = ListedColormap(cmap_array)
 
                         z = np.linspace(0, 1, len(self.kpoints))
-                        colorline(self.kpoints, self.BandStructure[nb, :, ns], z, cmap=cmap, linewidth=3)
+                        self.colorline(self.kpoints, self.BandStructure[nb, :, ns], z,plotting_axis=ax , cmap=cmap, linewidth=3)
                         ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linewidth=linewidth, alpha=0)
 
                 custom_lines = []
@@ -1730,10 +1841,13 @@ class Spectral:
                     custom_lines.append(Line2D([0], [0], color=basis[i], lw=3))
                     if pdos_species:
                         labels.append(self.atoms[i])
+                    elif pdos_both:
+                        label_orb = ["(s)", "(p)", "(d)", "(f)"]
+                        labels.append(self.atoms[i//4]+label_orb[i%4])
                     else:
                         labels = ["s", "p", "d", "f"]
 
-                ax.legend(custom_lines, labels, fontsize=fontsize)
+                ax.legend(custom_lines, labels, fontsize=fontsize,bbox_to_anchor=(1.17,1.15))
 
         # Mark the band gap on the plot V Ravindran 31/04/2024
         if mark_gap is True:
@@ -1745,6 +1859,7 @@ class Spectral:
                               spin_index=spin_index,
                               do_arrow=True)
 
+        plt.show()
         return
 
     def pdos_filter(self, species, l, ion=None):
@@ -2315,3 +2430,61 @@ class Spectral:
         else:
             raise ValueError("This type of object isn't implemented yet")
         return x, y
+
+    def make_segments(self, x, y):
+        """
+        Create list of line segments from x and y coordinates,
+        in the correct format for LineCollection: an array of the
+        form numlines x (points per line) x 2 (x and y) array
+        """
+
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        return segments
+
+    def colorline(self, x, y, z=None, plotting_axis=None, cmap=plt.get_cmap('copper'),
+                  norm=plt.Normalize(0.0, 1.0), linewidth=3, alpha=1.0):
+        """
+        http://nbviewer.ipython.org/github/dpsanders/matplotlib-examples/blob/master/colorline.ipynb
+        http://matplotlib.org/examples/pylab_examples/multicolored_line.html
+        Plot a colored line with coordinates x and y
+        Optionally specify colors in the array z
+        Optionally specify a colormap, a norm function and a line width
+        """
+        from matplotlib.collections import LineCollection
+
+        # Default colors equally spaced on [0,1]:
+        if z is None:
+            z = np.linspace(0.0, 1.0, len(x))
+        z = np.asarray(z)
+        segments = self.make_segments(x, y)
+
+        lc = LineCollection(segments, array=z, cmap=cmap, norm=norm,
+                              linewidth=linewidth, alpha=alpha)
+
+        plotting_axis.add_collection(lc)
+
+        return lc
+
+    def colorline_rgb(self, x, y, z=None, plotting_axis=None, cmap=plt.get_cmap('copper'),
+                  norm=plt.Normalize(0.0, 1.0), linewidth=3, alpha=1.0):
+        """
+        http://nbviewer.ipython.org/github/dpsanders/matplotlib-examples/blob/master/colorline.ipynb
+        http://matplotlib.org/examples/pylab_examples/multicolored_line.html
+        Plot a colored line with coordinates x and y
+        Optionally specify colors in the array z
+        Optionally specify a colormap, a norm function and a line width
+        """
+        from matplotlib.collections import LineCollection
+
+        segments = self.make_segments(x, y)
+
+        z_list = [tuple(row) for row in z.tolist()]
+
+        lc = LineCollection(segments, colors=z_list, linewidth=linewidth, alpha=alpha)
+        lc.set_array(np.arange(len(x)))
+
+        plotting_axis.add_collection(lc)
+        return lc
