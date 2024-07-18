@@ -1249,7 +1249,6 @@ class Spectral:
 
         # Define the color dictionary and associated color map required to match the colors between
         # the nc output and the result of collinear calculations. NPBentley 05/04/24
-
         cdict = {
             'red': (
                 (0.0, 0.0, 0.0),
@@ -1857,8 +1856,6 @@ class Spectral:
                               linewidth=mark_gap_linewidth,
                               spin_index=spin_index,
                               do_arrow=True)
-
-        plt.show()
         return
 
     def pdos_filter(self, species, l, ion=None):
