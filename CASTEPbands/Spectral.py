@@ -1182,6 +1182,7 @@ class Spectral:
                 axes_only=False,
                 pdos_species=False,
                 pdos_both=False,
+                custom_legend=None,
                 pdos_popn_select=[None, None],
                 band_ids=None,
                 band_colors=None,
@@ -1257,6 +1258,8 @@ class Spectral:
             Use species projection rather than angular momentum when colouring the band structure by Mulliken
         pdos_both : boolean
             Include both orbital and species breakdown in the partial density of states.
+        custom_legend : list(dtype=int)
+            Specify which labels user wants to be included in plot. NPB 16/07/24 - tempory solution.
         pdos_popn_select : ndarray
             population analysis
         band_ids : ndarray(dtype=int)
@@ -1637,15 +1640,27 @@ class Spectral:
 
                 custom_lines = []
                 labels = []
-                for i in range(n_cat):
-                    custom_lines.append(Line2D([0], [0], color=basis[i], lw=3))
-                    if pdos_species:
-                        labels.append(self.atoms[i])
-                    elif pdos_both:
-                        label_orb = ["(s)", "(p)", "(d)", "(f)"]
-                        labels.append(self.atoms[i//4]+label_orb[i%4])
-                    else:
-                        labels = ["s", "p", "d", "f"]
+
+                if custom_legend is not None:
+                    for i in range(len(custom_legend)):
+                        custom_lines.append(Line2D([0], [0], color=basis[custom_legend[i]], lw=3))
+                        if pdos_species:
+                            labels.append(self.atoms[custom_legend[i]])
+                        elif pdos_both:
+                            label_orb = ["(s)", "(p)", "(d)", "(f)"]
+                            labels.append(self.atoms[custom_legend[i] // 4] + label_orb[custom_legend[i] % 4])
+                        else:
+                            labels = ["s", "p", "d", "f"]
+                else:
+                    for i in range(n_cat):
+                        custom_lines.append(Line2D([0], [0], color=basis[i], lw=3))
+                        if pdos_species:
+                            labels.append(self.atoms[i])
+                        elif pdos_both:
+                            label_orb = ["(s)", "(p)", "(d)", "(f)"]
+                            labels.append(self.atoms[i // 4]+label_orb[i%4])
+                        else:
+                            labels = ["s", "p", "d", "f"]
 
                 ax.legend(custom_lines, labels, fontsize=fontsize,bbox_to_anchor=(1.17,1.15))
 
