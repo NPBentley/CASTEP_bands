@@ -1,3 +1,12 @@
+"""
+The main module that handles the reading of CASTEP band strucutres.
+
+All the relevant band structure data is stored in the Spectral class and manipulations
+are largely done using the methods contained therein.
+"""
+# Created by: Z Hawkhead, 22/03/2023
+# Contributors: N. P. Bentley, V. Ravindran
+
 import time
 import warnings
 from itertools import cycle
@@ -39,9 +48,16 @@ class Spectral:
          Convert eigenvalues from atomic units (Hartrees) to electronvolts
     flip_spins : boolean
          Swap the spin channels when making the plot (Default : True)
+    have_ncm : boolean
+         Band structure is from non-collinear calculation.
+         This basically instructs overrides double occupancy despites nspins=1 as from
+        .bands file alone, non-collinear magnetism alone cannot be inferred (default: False)
     high_sym_spacegroup
          Get the high-symmetry points from the space group rather than just the
           geometry/lattice parameters of the computational cell (Default : True)
+    use_cell:
+         Cell file containing structure used for band structure
+         (Default : <seed>.cell)
     vec_spin : boolean
         The .bands file contains the spin components, S_{i}, from a calculation with NCM (Default : False)
 
@@ -49,6 +65,8 @@ class Spectral:
     ----------
     plot_bs
          Plots the band structure from the .bands file
+    mark_bandgap
+         Use the mark the band gap on a bandstructure or DOS plot.
     pdos_filter
          Function for separating the partial density of states by species,ion and angular momentum.
     plot_dos
@@ -68,9 +86,10 @@ class Spectral:
                  zero_shift=None,
                  convert_to_eV=True,
                  flip_spins=False,
+                 have_ncm=False,
                  high_sym_spacegroup=True,
+                 use_cell=None,
                  vec_spin=False):
-
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
         self.start_time = time.time()
         self.pdos_has_read = False
@@ -105,6 +124,7 @@ class Spectral:
         self.zero_vbm = zero_vbm
         self.zero_cbm = zero_cbm
         self.use_vbm_fermi = use_vbm_fermi
+        self.have_ncm = have_ncm
 
         # First we try to open the file
 
@@ -112,7 +132,7 @@ class Spectral:
         try:
             bands_file = seed + ".bands"
             bands = open(bands_file, 'r')
-        except:
+        except FileNotFoundError:
             raise FileNotFoundError("No .bands file")
 
         lines = bands.readlines()
@@ -153,13 +173,24 @@ class Spectral:
         self.eig_down = no_eigen_2
         self.n_kpoints = no_kpoints
 
+        # Set occupancies - used to be in get_band_info only, now moved here V Ravindran 02/05/2024
+        # NB: These aren't the actual occupancies, in a solid fractional occupancies are possible in e.g. metals
+        # For plotting purposes, using integer occupancies will suffice.
+        if no_spins == 2 or have_ncm is True:
+            # Non collinear has bands at each spin component so the number of bands is doubled
+            # Spin polarised likewise has two spin channels
+            self.occ = 1
+        else:
+            # If not spin polarised, then we are doubly occupying levels
+            self.occ = 2
+
         band_structure = np.zeros((max_eig, no_kpoints, no_spins))  # bands, kpt, spin
         if vec_spin:
-            spin_components = np.zeros((max_eig, no_kpoints,3))
+            spin_components = np.zeros((max_eig, no_kpoints, 3))
 
         kpt_weights = np.zeros(no_kpoints)
 
-        kpoint_array = np.empty(shape=(no_kpoints))  # the array holding the number of the kpoint
+        kpoint_array = np.empty(no_kpoints)  # the array holding the number of the kpoint
         kpoint_list = []  # array of the kpoint vectors
 
         if no_spins == 1:
@@ -266,7 +297,6 @@ class Spectral:
                 spin_components[nb, :, 1] = spin_components[nb, :, 1][sort_array]
                 spin_components[nb, :, 2] = spin_components[nb, :, 2][sort_array]
 
-
         self.kpoints = kpoint_array
         self.kpoint_list = kpoint_list
         self.kpt_weights = kpt_weights[sort_array]
@@ -274,7 +304,7 @@ class Spectral:
         self.nbands = max_eig
         self.nspins = no_spins
         if vec_spin:
-            self.spin_components=spin_components
+            self.spin_components = spin_components
 
         # do the high symmetry points
         k_ticks = []
@@ -407,15 +437,23 @@ class Spectral:
         # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
         # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
         # CASTEP_COMMAND environmental variable is set which will slow down the read.                  V Ravindran CELL_READ 01/05/2024
-        cell = io.read(seed + ".cell",
-                       # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
-                       calculator_args={"keyword_tolerance": 3}
-                       )
+        if use_cell is not None:
+            # Ability to set use a different cellfile USE_CELL V Ravindran 12/07/2024
+            cell = io.read(use_cell.strip(),
+                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                           calculator_args={"keyword_tolerance": 3}
+                           )
+        else:
+            cell = io.read(seed + ".cell",
+                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                           calculator_args={"keyword_tolerance": 3}
+                           )
 
         # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
         if high_sym_spacegroup is True:
             special_points = _get_high_sym_points_spg(cell)
         else:
+            # Get special from the crystal system of the computational cell.
             bv_latt = cell.cell.get_bravais_lattice()
             special_points = bv_latt.get_special_points()
 
@@ -569,6 +607,7 @@ class Spectral:
 
         # Get a summary of the band structure instead, start with the bits we already have in the class
         band_info = {'nelec': None, 'nbands': None, 'nspins': self.nspins, 'nkpts': self.n_kpoints,
+                     'have_ncm': self.have_ncm,
                      'gap_indir': None, 'gap_dir': None, 'loc_indir': None, 'loc_dir': None,
                      'fermi': self.Ef, 'vb_width': None, 'cb_width': None, 'eng_unit': None}
 
@@ -584,20 +623,13 @@ class Spectral:
             nelecs[0] = self.electrons
             nbands[0] = self.eig_up
 
-        # Set occupancies
-        # TODO MAKE THIS A FUNCTION - for non-collinear, we have twice the number of bands as there are two spinor components although only one spin
-        occ = 1
-        if (self.nspins == 1):
-            # If not spin polarised, then we are doubly occupying levels
-            occ = 2
-
         # Vectorised operations V Ravindran 01/05/2024
         # Get valence and conduction bands for each spin
         vb_eigs = np.empty((self.nspins, self.n_kpoints))
         cb_eigs = np.empty((self.nspins, self.n_kpoints))
         for ns in range(self.nspins):
-            vb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ) - 1, :, ns]
-            cb_eigs[ns] = self.BandStructure[int(nelecs[ns] / occ), :, ns]
+            vb_eigs[ns] = self.BandStructure[int(nelecs[ns] / self.occ) - 1, :, ns]
+            cb_eigs[ns] = self.BandStructure[int(nelecs[ns] / self.occ), :, ns]
 
         # Determine valence band maximum and conduction band minimum to get (indirect) gap
         # NB: It may not actually be indirect, in direct gapped insulators, gap_dir = gap_in
@@ -646,8 +678,17 @@ class Spectral:
 
         # Write out the data in a pretty format
         # Really we should be using f-strings for this but on the off chance someone has an older version of Python...
+        # Added spin treatment 03/05/2024
+        if self.nspins == 2:
+            spin_treatment = 'collinear'
+        elif self.have_ncm is True:
+            spin_treatment = 'non-collinear'
+        else:
+            spin_treatment = 'spin-degenerate'
+
         if silent is False:
-            print('Number of spins:     ', self.nspins)
+            print('Spin treatment:      ', spin_treatment)
+            # print('Number of spins:     ', self.nspins)  # Replaced with spin_treatment 03/05/2024
             print('Number of k-points:  ', self.n_kpoints)
             print('Fermi Energy:        {:.6f} {}'.format(self.Ef, eng_unit))
 
@@ -711,7 +752,7 @@ class Spectral:
 
         kpoints = np.zeros((num_kpoints, 3))
         pdos_weights = np.zeros((num_popn_orb, max_eigenvalues, num_kpoints, num_spins))
-        pdos_weights_orb_spec = np.zeros((4*num_species, max_eigenvalues, num_kpoints,num_spins))
+        pdos_weights_orb_spec = np.zeros((4*num_species, max_eigenvalues, num_kpoints, num_spins))
         pdos_orb_spec = np.zeros((num_species, 4, max_eigenvalues, num_kpoints, num_spins))
 
         # NPBentley - Initalise array for containing orbitals subdivided up into their suborbitals in the pdos calculation.
@@ -751,11 +792,10 @@ class Spectral:
 
             pdos_orb_spec[spec_ind, l_ind, :, :, :] = pdos_orb_spec[spec_ind, l_ind, :, :, :] + pdos_weights[i, :, :, :]
 
-        #Save the weights for each of the species and orbitals before finding the dominant species and orbital for
-        #each point in the bandstructure.
+        # Save the weights for each of the species and orbitals before finding the dominant species and orbital for
+        # each point in the bandstructure.
         if pdos_both:
-           pdos_weights_orb_spec = pdos_orb_spec
-
+            pdos_weights_orb_spec = pdos_orb_spec
 
         # Sum over all the kpoints of pdos_orb_spec, in order to give the weights for the given band
         # across the chosen k-point path.
@@ -1037,8 +1077,165 @@ class Spectral:
         gle_graph.write('\nend graph')
         gle_graph.close()
 
+    def mark_bandgap(self, ax: matplotlib.axes,
+                     spin_index: 'int | list' = None,
+                     color: 'str | list' = None,
+                     headwidth: 'float | list' = None,
+                     linewidth: 'float | list' = None,
+                     label_vbm: 'str | list' = None,
+                     label_cbm: 'str | list' = None,
+                     label_gap: 'str | list' = None,
+                     alpha: float = 0.85,
+                     do_arrow: bool = True,
+                     dos: bool = False,
+                     return_actors=False,
+                     ):
+        """Mark the band gap on a bandstructure or DOS plot.
 
-    def _plot_ncm_S_i(self,ax,quantisation_axis,linewidth):
+        Parameters
+        ----------
+        ax : matplotlib.axes
+            axes to mark the gap on
+        spin_index : 'int | list'
+            mark the gap for the specified spin channels. If none, all spin channels will be marked.
+        color : 'str | list'
+            colour to use when marking the gap for each spin channel.
+            If just a string is passed, the same colour will be used for both channels.
+        headwidth : 'float | list'
+            width of arrow head to use when marking the gap, if just float, same width used for both channels.
+        linewidth : 'float | list'
+            width of arrow used to mark the gap, if just float, same width used for both channels.
+        label_vbm : 'str | list'
+            labels to use when marking the VBM. If a single label is passed, only the first spin channel will be labelled.
+        label_cbm : 'str | list'
+            label for CBM, cf. label_vbm
+        label_gap : 'str | list'
+            label for gap arrow cf. label_vbm
+        alpha: float
+            transparency of band gap marker
+        do_arrow : bool
+            add the arrow when marking the gap, otherwise, just indicate using points
+        dos : bool
+            marking on a DOS plot rather than a bandstructure
+        return_actors: bool
+            return the actors used to mark the gap (default : False)
+        """
+
+        # Get number of electrons in each spin channel
+        # Taken from the class now V Ravindran 02/05/2024
+        # if self.nspins == 2:
+        #     nelec = np.array([self.nup, self.ndown], dtype=int)
+        #     occ = 1
+        # else:
+        #     nelec = np.array([self.electrons], dtype=int)
+        #     occ = 2
+
+        # Decide which spins to plot
+        if spin_index is None:
+            # If not spin index provided, then do all the spins
+            spin_index = np.arange(self.nspins)
+
+        # Now decide on aesthetics
+        if color is not None:
+            if isinstance(color, list):
+                if len(color) != len(spin_index):
+                    raise IndexError('You need to provide a colour for each spin channel')
+            elif isinstance(color, str):
+                col = color
+                color = [col, col]
+            else:
+                raise TypeError('color not string or list.')
+        else:
+            color = ['red', 'blue']
+
+        if headwidth is not None:
+            if isinstance(headwidth, list):
+                if len(headwidth) != len(spin_index):
+                    raise IndexError('You need to provide a headwidth for each spin channel')
+            elif isinstance(headwidth, float):
+                arrw = headwidth
+                headwidth = [arrw, arrw]
+            else:
+                raise TypeError('headwidth not a float or list.')
+        else:
+            headwidth = [0.75, 0.75]
+
+        if linewidth is not None:
+            if isinstance(linewidth, list):
+                if len(linewidth) != len(spin_index):
+                    raise IndexError('You need to provide a linewidth for each spin channel')
+            elif isinstance(linewidth, float):
+                lw = linewidth
+                linewidth = [lw, lw]
+            else:
+                raise TypeError('linewidth not a string or list.')
+        else:
+            linewidth = [0.15, 0.15]
+
+        # Parse the user's label
+        def _format_label(label):
+            """Parse a label provided by the user"""
+            if label is not None:
+                if isinstance(label, list):
+                    if len(label) != len(spin_index):
+                        raise IndexError('You need to provide a label for each spin channel')
+                elif isinstance(label, str):
+                    # A bit of a pain this one, copy the label provided by user and then note the spin channel we want to plot
+                    tmpstr = label
+                    if len(spin_index) == 1:
+                        # Create array for two spins initialised to none and then override appropriate spin index with actual label
+                        label = [None for ns in range(self.nspins)]
+                        label[spin_index[0]] = tmpstr
+                    elif len(spin_index) == 2:
+                        # Assign label only for the first spin channel
+                        label = [tmpstr, None]
+                else:
+                    raise TypeError('label is not a list or string')
+            else:
+                label = [None, None]
+            return label
+
+        label_vbm = _format_label(label_vbm)
+        label_cbm = _format_label(label_cbm)
+        label_gap = _format_label(label_gap)
+
+        # Get the valence band maximum and conduction band minimum for each spin.
+        vbm_i, cbm_i, vbm_eig, cbm_eig = self.get_band_info(ret_vbm_cbm=True)
+
+        def _mark_gap_bs(ns: int, do_arrow: bool = True):
+            """Helper function to mark the gap on a bandstructure for a given spin"""
+            vbm_k = self.kpoints[vbm_i[ns]]
+            cbm_k = self.kpoints[cbm_i[ns]]
+            vbm_act = ax.scatter(vbm_k, vbm_eig[ns], color=color[ns], label=label_vbm[ns],
+                                 zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                 )
+            cbm_act = ax.scatter(cbm_k, cbm_eig[ns], color=color[ns], label=label_cbm[ns],
+                                 zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                 )
+            if do_arrow is True:
+                gap_arrow = ax.arrow(vbm_k, vbm_eig[ns],
+                                     cbm_k - vbm_k, cbm_eig[ns] - vbm_eig[ns],
+                                     width=linewidth[ns],
+                                     head_width=headwidth[ns],
+                                     color=color[ns],
+                                     length_includes_head=True,
+                                     zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                     label=label_gap[ns]
+                                     )
+            return vbm_act, cbm_act, gap_arrow
+
+        # Now mark the gap
+        if dos is True:
+            raise NotImplementedError('Marking of gap not implemented for density of states')
+        else:
+            gap_actors = [None for ns in spin_index]
+            for ns in spin_index:
+                gap_actors[ns] = _mark_gap_bs(ns, do_arrow=do_arrow)
+
+        if return_actors is True:
+            return gap_actors
+
+    def _plot_ncm_S_i(self, ax, quantisation_axis, linewidth):
         '''Function for plotting the S_{i} components result from a NCM calculation
         :param ax : Contains the axis object for which the bands are plotted on
         :param quantisation_axis : determines the direction of the plotted spin component (Default : "z")
@@ -1050,9 +1247,8 @@ class Spectral:
         from matplotlib.colors import LinearSegmentedColormap
         from matplotlib.lines import Line2D
 
-        #Define the color dictionary and associated color map required to match the colors between
-        #the nc output and the result of collinear calculations. NPBentley 05/04/24
-
+        # Define the color dictionary and associated color map required to match the colors between
+        # the nc output and the result of collinear calculations. NPBentley 05/04/24
         cdict = {
             'red': (
                 (0.0, 0.0, 0.0),
@@ -1069,30 +1265,31 @@ class Spectral:
         }
         cmap_ncm = LinearSegmentedColormap('ncm', cdict)
 
-        #Determine the limiting values of the colormap based on the chosen quantisation direction.
+        # Determine the limiting values of the colormap based on the chosen quantisation direction.
         if quantisation_axis == 'x':
-            #print("x")
-            cvals = [np.min(self.spin_components[:,:,0]),np.max(self.spin_components[:,:,0])]
-            z = self.spin_components[:,:,0]
+            # print("x")
+            cvals = [np.min(self.spin_components[:, :, 0]), np.max(self.spin_components[:, :, 0])]
+            z = self.spin_components[:, :, 0]
         elif quantisation_axis == 'y':
-            #print("y")
+            # print("y")
             cvals = [np.min(self.spin_components[:, :, 1]), np.max(self.spin_components[:, :, 1])]
             z = self.spin_components[:, :, 1]
         else:
-            #print("z")
+            # print("z")
             cvals = [np.min(self.spin_components[:, :, 2]), np.max(self.spin_components[:, :, 2])]
             z = self.spin_components[:, :, 2]
 
-        norm_ncm = plt.Normalize(min(cvals),max(cvals))
+        norm_ncm = plt.Normalize(min(cvals), max(cvals))
 
-        #Plot the bands using the defined color map
+        # Plot the bands using the defined color map
         for nb in range(self.nbands):
 
-            self.colorline(self.kpoints, self.BandStructure[nb, :, 0], z[nb,:],plotting_axis=ax, cmap=cmap_ncm, norm=norm_ncm, linewidth=linewidth)
-            ax.plot(self.kpoints, self.BandStructure[nb, :, 0], z[nb,:], linewidth=linewidth, alpha=0)
+            self.colorline(self.kpoints, self.BandStructure[nb, :, 0], z[nb, :],
+                           plotting_axis=ax, cmap=cmap_ncm, norm=norm_ncm, linewidth=linewidth)
+            ax.plot(self.kpoints, self.BandStructure[nb, :, 0], z[nb, :], linewidth=linewidth, alpha=0)
 
-        #Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
-        #plt.savefig('noncollinear.pdf')
+        # Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
+        # plt.savefig('noncollinear.pdf')
 
         return
 
@@ -1110,49 +1307,48 @@ class Spectral:
         from matplotlib.lines import Line2D
         from numpy.linalg import norm
 
-        #Consider normalising all the spin vectors (removes issue due to some of the unoccupied bands not
+        # Consider normalising all the spin vectors (removes issue due to some of the unoccupied bands not
         # being constrained to be normalised) NPBentley 25/06/24
         self.spin_components = np.divide(self.spin_components,
-                                         np.repeat(norm(self.spin_components,ord=None,axis=2)[:, :, np.newaxis], 3, axis=2))
+                                         np.repeat(norm(self.spin_components, ord=None, axis=2)[:, :, np.newaxis], 3, axis=2))
 
-        #Define quantisation axis in order to prove mapping between collinear and ncm calculations.
+        # Define quantisation axis in order to prove mapping between collinear and ncm calculations.
         if quantisation_axis == 'x':
-            z=0
-            x=2
-            y=1
+            z = 0
+            x = 2
+            y = 1
         elif quantisation_axis == 'y':
-            z=1
-            x=0
-            y=2
+            z = 1
+            x = 0
+            y = 2
         else:
-            z=2
-            x=0
-            y=1
+            z = 2
+            x = 0
+            y = 1
 
-        #Define an array of colours based on the desired mapping. #NPBentley 26/06/24
-        #In this case the component along the quantisation direction goes from blue to red and the
-        #components orthogonal to the quantisation direction are green.
+        # Define an array of colours based on the desired mapping. #NPBentley 26/06/24
+        # In this case the component along the quantisation direction goes from blue to red and the
+        # components orthogonal to the quantisation direction are green.
 
         rgb_colormap_test = np.zeros(np.shape(self.spin_components))
         rgb_colormap_test[:, :, 0] = (self.spin_components[:, :, z] + 1)/2
-        #rgb_colormap_test[:, :, 1] = (self.spin_components[:, :, x] + self.spin_components[:, :, y] + 2) / 4
+        # rgb_colormap_test[:, :, 1] = (self.spin_components[:, :, x] + self.spin_components[:, :, y] + 2) / 4
         rgb_colormap_test[:, :, 1] = (np.abs(self.spin_components[:, :, x]) + np.abs(self.spin_components[:, :, y])) / 2
         rgb_colormap_test[:, :, 2] = 1 - (self.spin_components[:, :, z] + 1)/2
-        cmap_ncvec = ListedColormap(rgb_colormap_test, name = 'ncm_vec')
+        cmap_ncvec = ListedColormap(rgb_colormap_test, name='ncm_vec')
 
+        # The colour map below maps spin components onto x, y and z respectively. NPBentley 26/06/24
+        # cmap_ncvec = ListedColormap((self.spin_components+1)/2, name = 'ncm_vec')
 
-        #The colour map below maps spin components onto x, y and z respectively. NPBentley 26/06/24
-        #cmap_ncvec = ListedColormap((self.spin_components+1)/2, name = 'ncm_vec')
-
-        #Plot the bands using the defined color map
+        # Plot the bands using the defined color map
         for nb in range(self.nbands):
-            self.colorline_rgb(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb, :, :], cmap= cmap_ncvec, plotting_axis=ax, linewidth=linewidth)
+            self.colorline_rgb(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb,
+                               :, :], cmap=cmap_ncvec, plotting_axis=ax, linewidth=linewidth)
             ax.plot(self.kpoints, self.BandStructure[nb, :, 0], rgb_colormap_test[nb, :, :], linewidth=linewidth, alpha=0)
 
-        #Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
-        #plt.savefig('noncollinear.pdf')
+        # Save the non-collinear plot as a PDF - include this as an option? NPBentley 19/04/24
+        # plt.savefig('noncollinear.pdf')
         return
-
 
     def plot_bs(self,
                 ax,
@@ -1193,7 +1389,7 @@ class Spectral:
                 mark_gap_headwidth=None,
                 mark_gap_linewidth=None,
                 band_labels=None,
-                legend_loc='best'
+                # legend_loc='best' V Ravindran 10/05/2024
                 ):
         """Plot the band structure from a .bands file.
 
@@ -1284,8 +1480,6 @@ class Spectral:
             (default : 0.15 for both spin channels)
         band_labels : list(dtype=str)
             labels for specific bands specified by bands_ids.
-        legend_loc : str or pair of floats
-            position of the legend for the plot if a legend is created (default: 'best')
 
         Raises
         ------
@@ -1498,25 +1692,26 @@ class Spectral:
 
             # Set up labels according to the band_ids_mask
             band_labels = _setup_str_mask(band_labels, band_ids_mask)
+        else:  # V Ravindran BS_LEGEND 10/05/2024
+            # Created a list of empty labels to use for bands
+            band_labels = np.full((self.nbands, len(spin_index)), None)
 
         # Do the standard plotting, no pdos here
         if not pdos:
             # Here we plot all of the bands. We can provide a mechanism latter for plotting invididual ones
 
+            # DEPRECIATED NOW
             # Store the lines for each band in a list - band_labels V Ravindran 12/04/2024
             # so we can add them to legend when labelling. -  band_labels V Ravindran 12/04/2024
-            custom_lines = []
-            l_labels = []  # local copy of band_labels as a list
-
+            # custom_lines = []
+            # l_labels = []  # local copy of band_labels as a list
             if not nc_spin:
                 for nb in range(self.nbands):
                     for ns in spin_index:
-
                         if not band_ids_mask[nb, ns]:
                             # If the band is not within the mask,
                             # then do not plot it and skip to the next band.
                             continue
-                            # Mono
 
                         # Updated colour selection V Ravindran 14/04/2024
                         line_color = ''
@@ -1530,35 +1725,38 @@ class Spectral:
                         if line_color == '':
                             # No colour specified so let pick from rcParams
                             line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth)
+                                               linestyle=linestyle, linewidth=linewidth)
                         else:
                             line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                           linestyle=linestyle, linewidth=linewidth, color=line_color)
+                                               linestyle=linestyle, linewidth=linewidth, color=line_color)
 
-                        if band_labels is not None:  # band_labels V Ravindran 12/04/2024
+                        # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
                             # V Ravindran: The check further up should have caught the fact that band_ids
                             # needs to be supplied together with band_labels.
-                            # This *should* prevent every band from being labelled.
-                            # Thus only bands we want to label should be added.
-                            #
-                            # Unfortunately, it requires this routine to be called twice,
-                            # once for the overall band structure, and the second for the labels...
-                            custom_lines.append(line)
-                            l_labels.append(band_labels[nb, ns])
+                            # If no band_labels were supplied, an empty array of the shape (nbands, len(spin_index))
+                            # will have been created with values initialised to None
+                            # and this if statement should be bypassed.
+                            # custom_lines.append(line)
+                            # l_labels.append(band_labels[nb, ns])
 
-                # Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
-                if band_labels is not None:
-                    ax.legend(custom_lines, l_labels, loc=legend_loc)
-                # Return the lines and labels so the user can customise the legend how they wish
+                # It's easier to add the legend using matplotlib manually at the end  V Ravindran BS_LEGEND 10/05/2024
+                # after calling the plot_bs method rather than returning the lines    V Ravindran BS_LEGEND 10/05/2024
+                # and attempting to create the legend manually.                       V Ravindran BS_LEGEND 10/05/2024
+                # if band_labels is not None:
+                    # DEPRECIATED Add a legend with the band labels if requested band_labels V Ravindran 12/04/2024
+                    # ax.legend(custom_lines, l_labels, loc=legend_loc)
+                    # Return the lines and labels so the user can customise the legend how they wish
+                    # return custom_lines
+
                 if output_gle:
                     self._plot_gle(spin_polarised, spin_index)
 
             else:
                 if nc_spin_component:
-                    self._plot_ncm_S_i(ax,quantisation_axis,linewidth)
+                    self._plot_ncm_S_i(ax, quantisation_axis, linewidth)
                 else:
-                    self._plot_ncm_S(ax,quantisation_axis,linewidth)
-                #plt.show()
+                    self._plot_ncm_S(ax, quantisation_axis, linewidth)
+                # plt.show()
 
         # now pdos is a thing
         else:
@@ -1601,14 +1799,14 @@ class Spectral:
 
                 # Define the colours we'll use for the plotting
                 n_colors = cycle(['teal', 'green', 'yellow', 'black', 'pink', 'orange', 'red', 'black',
-                                  'cyan','brown','blue','black'])
-                #n_colors = cycle(['blue','red','green'])
+                                  'cyan', 'brown', 'blue', 'black'])
+                # n_colors = cycle(['blue','red','green'])
 
                 if pdos_species:
                     n_cat = len(self.atoms)
                 elif pdos_both:
                     n_cat = len(self.atoms) * 4
-                    #Now works, issue was in the _read_pdos function, see comments there NPB 29/06/24
+                    # Now works, issue was in the _read_pdos function, see comments there NPB 29/06/24
                 else:
                     n_cat = 4
                 basis = []
@@ -1635,7 +1833,7 @@ class Spectral:
                             cmap = ListedColormap(cmap_array)
 
                         z = np.linspace(0, 1, len(self.kpoints))
-                        self.colorline(self.kpoints, self.BandStructure[nb, :, ns], z,plotting_axis=ax , cmap=cmap, linewidth=3)
+                        self.colorline(self.kpoints, self.BandStructure[nb, :, ns], z, plotting_axis=ax, cmap=cmap, linewidth=3)
                         ax.plot(self.kpoints, self.BandStructure[nb, :, ns], linewidth=linewidth, alpha=0)
 
                 custom_lines = []
@@ -1662,74 +1860,17 @@ class Spectral:
                         else:
                             labels = ["s", "p", "d", "f"]
 
-                ax.legend(custom_lines, labels, fontsize=fontsize,bbox_to_anchor=(1.17,1.15))
+                ax.legend(custom_lines, labels, fontsize=fontsize, bbox_to_anchor=(1.17, 1.15))
 
         # Mark the band gap on the plot V Ravindran 31/04/2024
         if mark_gap is True:
-            vbm_i, cbm_i, *_ = self.get_band_info(ret_vbm_cbm=True)
-            # Decide on occupancies for each band depending on spin polarised or not
-            if self.spin_polarised is True:
-                nelec = np.array([self.nup, self.ndown], dtype=int)
-                occ = 1
-            else:
-                nelec = np.array([self.electrons], dtype=int)
-                occ = 2
-
-            # Now decide on aesthetics
-            if mark_gap_color is not None:
-                if isinstance(mark_gap_color, list):
-                    if len(mark_gap_color) != len(spin_index):
-                        raise IndexError('You need to provide a colour for each spin channel')
-                elif isinstance(mark_gap_color, str):
-                    col = mark_gap_color
-                    mark_gap_color = [col, col]
-                else:
-                    raise TypeError('mark_gap_color not string or list.')
-            else:
-                mark_gap_color = ['red', 'blue']
-
-            if mark_gap_headwidth is not None:
-                if isinstance(mark_gap_headwidth, list):
-                    if len(mark_gap_headwidth) != len(spin_index):
-                        raise IndexError('You need to provide a headwidth for each spin channel')
-                elif isinstance(mark_gap_headwidth, float):
-                    arrw = mark_gap_headwidth
-                    mark_gap_headwidth = [arrw, arrw]
-                else:
-                    raise TypeError('mark_gap_headwidth not a float or list.')
-            else:
-                mark_gap_headwidth = [0.75, 0.75]
-
-            if mark_gap_linewidth is not None:
-                if isinstance(mark_gap_linewidth, list):
-                    if len(mark_gap_linewidth) != len(spin_index):
-                        raise IndexError('You need to provide a linewidth for each spin channel')
-                elif isinstance(mark_gap_linewidth, float):
-                    lw = mark_gap_linewidth
-                    mark_gap_linewidth = [lw, lw]
-                else:
-                    raise TypeError('mark_gap_linewidth not a string or list.')
-            else:
-                mark_gap_linewidth = [0.15, 0.15]
-
-            # Finally, mark the gaps
-            for ns in spin_index:
-                vb_eigs = self.BandStructure[int(nelec[ns] / occ) - 1, :, ns]
-                cb_eigs = self.BandStructure[int(nelec[ns] / occ), :, ns]
-
-                vbm_k, vbm_eng = self.kpoints[vbm_i[ns]], vb_eigs[vbm_i[ns]]
-                cbm_k, cbm_eng = self.kpoints[cbm_i[ns]], cb_eigs[cbm_i[ns]]
-                ax.scatter(vbm_k, vbm_eng, color=mark_gap_color[ns])
-                ax.scatter(cbm_k, cbm_eng, color=mark_gap_color[ns])
-                ax.arrow(vbm_k, vbm_eng, cbm_k - vbm_k, cbm_eng - vbm_eng,
-                         width=mark_gap_linewidth[ns],
-                         head_width=mark_gap_headwidth[ns],
-                         color=mark_gap_color[ns],
-                         length_includes_head=True,
-                         zorder=50000  # HACK Set this really high and hope this lies on top of everything.
-                         )
-
-        plt.show()
+            # Moved to its own method V Ravindran 03/05/2024
+            self.mark_bandgap(ax,
+                              color=mark_gap_color,
+                              headwidth=mark_gap_headwidth,
+                              linewidth=mark_gap_linewidth,
+                              spin_index=spin_index,
+                              do_arrow=True)
         return
 
     def pdos_filter(self, species, l, ion=None):
@@ -2250,8 +2391,9 @@ class Spectral:
 
         Defaults to current axes object if not specified.
         '''
-        import matplotlib.pyplot as plt
-        import numpy as np
+        # Already imported at top level, no need to reimport V Ravindran 03/05/2024
+        # import matplotlib.pyplot as plt
+        # import numpy as np
         if ax is None:
             ax = plt.gca()
         newlow, newhigh = np.inf, -np.inf
@@ -2331,14 +2473,14 @@ class Spectral:
         segments = self.make_segments(x, y)
 
         lc = LineCollection(segments, array=z, cmap=cmap, norm=norm,
-                              linewidth=linewidth, alpha=alpha)
+                            linewidth=linewidth, alpha=alpha)
 
         plotting_axis.add_collection(lc)
 
         return lc
 
     def colorline_rgb(self, x, y, z=None, plotting_axis=None, cmap=plt.get_cmap('copper'),
-                  norm=plt.Normalize(0.0, 1.0), linewidth=3, alpha=1.0):
+                      norm=plt.Normalize(0.0, 1.0), linewidth=3, alpha=1.0):
         """
         http://nbviewer.ipython.org/github/dpsanders/matplotlib-examples/blob/master/colorline.ipynb
         http://matplotlib.org/examples/pylab_examples/multicolored_line.html

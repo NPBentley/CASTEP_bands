@@ -58,8 +58,10 @@ MnO_bands.plot_bs(
     band_labels=['VB (up)', 'CB (down)'],
     band_colors=['r', 'orange'],
     linewidth=3.0,
-    legend_loc='upper right'
 )
+
+# Add the legend
+ax.legend(loc='upper right')
 
 plt.tight_layout()
 plt.savefig('MnO_label_bands.png')
