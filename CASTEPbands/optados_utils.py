@@ -17,6 +17,8 @@ EV_TO_HARTREE = 1.0/27.211386245988
 
 
 class DOSdata:
+    # TODO Documenation
+    # TODO Spin polarised calculations
     def __init__(self,
                  optadosfile: str,
                  zero_fermi: bool = True,
@@ -24,7 +26,7 @@ class DOSdata:
                  is_pdos: bool = None,
                  pdos_type: str = None,
                  ):
-
+        # TODO Documentation
         # First, decide whether we have a PDOS or DOS if not specified
         # by reading the contents of the header.
         dos_header = ' #    Density of States'
@@ -181,6 +183,7 @@ class DOSdata:
             pdos_data = np.loadtxt(optadosfile, dtype=float, comments='#', encoding='ascii')
             self.engs = pdos_data[:, 0]  # eV
             self.pdos = pdos_data[:, 1:]  # electron per eV
+            self.pdos = self.pdos.transpose()
 
         def __dos_read():
             dosdata = np.loadtxt(optadosfile, dtype=float, comments='#', encoding='ascii')
@@ -194,13 +197,52 @@ class DOSdata:
         else:
             __dos_read()
 
+        self.eng_unit = 'eV'
+
         # Convert to atomic units if desired
-        self.engs *= EV_TO_HARTREE
-        if self.have_pdos:
-            self.pdos *= EV_TO_HARTREE
-        else:
-            self.dos *= EV_TO_HARTREE
+        if convert_to_au:
+            self.eng_unit = 'Hartrees'
+            self.engs *= EV_TO_HARTREE
+            if self.have_pdos:
+                self.pdos *= EV_TO_HARTREE
+            else:
+                self.dos *= EV_TO_HARTREE
 
         # OptaDOS does not write the Fermi energy to the output file so the best we can do
         # is rely on specifying whether we requested OptaDOS to zero the Fermi energy.
         self.zero_fermi = zero_fermi
+
+    def set_pdos_labels(self, pdos_labels: list):
+        if (len(pdos_labels) != self.nproj):
+            raise IndexError(f'PDOS has {self.nproj} projectors but only {len(pdos_labels)} provided')
+
+    def plot_data(self, ax: mpl.axes._axes.Axes,
+                  fontsize: float = 20,
+                  linewidth: float = 1.1,
+                  fermi_linestyle: str = '--',
+                  fermi_color: str = '0.5',
+                  fermi_linewidth: float = 1.0
+                  ):
+
+        # Set the label for the energy scale
+        if self.zero_fermi is True:
+            ax.set_xlabel(r'$E - E_\mathrm{F}$ ' + f'({self.eng_unit})', fontsize=fontsize)
+        else:
+            ax.set_xlabel(r'$E$ ' + f'({self.eng_unit})', fontsize=fontsize)
+
+        # Decide what we are plotting and plot it
+        if self.have_pdos is True:
+            ax.set_ylabel(f'PDOS (electrons per {self.eng_unit})', fontsize=fontsize)
+            # For PDOS, loop around all projectors and plot with labels
+            for n in range(self.nproj):
+                ax.plot(self.engs, self.pdos[n], linewidth=linewidth, label=self.pdos_labels[n])
+        else:
+            ax.set_ylabel(f'DOS (electrons per {self.eng_unit})', fontsize=fontsize)
+            ax.plot(self.engs, self.dos, linewidth=linewidth)
+
+        # Sort out tick labels and font sizes
+        ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=8, width=1.2)
+        ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=4, width=1.2)
+        ax.minorticks_on()
+
+        # TODO Add Fermi energy
