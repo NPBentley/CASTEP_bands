@@ -6,12 +6,14 @@ although it is anticipated both will be used in tandem, for instance a band stru
 """
 # Created by : V Ravindran, 12/08/2024
 
+import re
 import warnings
 
 import matplotlib as mpl
 import numpy as np
 
-from CASTEPbands import Spectral
+import CASTEPbands.Spectral as spec
+
 
 EV_TO_HARTREE = 1.0/27.211386245988
 
@@ -21,6 +23,7 @@ class DOSdata:
     # TODO Spin polarised calculations
     def __init__(self,
                  optadosfile: str,
+                 efermi: float = None,
                  zero_fermi: bool = True,
                  convert_to_au: bool = False,
                  is_pdos: bool = None,
@@ -208,27 +211,63 @@ class DOSdata:
             else:
                 self.dos *= EV_TO_HARTREE
 
-        # OptaDOS does not write the Fermi energy to the output file so the best we can do
-        # is rely on specifying whether we requested OptaDOS to zero the Fermi energy.
+        # OptaDOS does not write the Fermi energy to the output file. We thus need to either
+        # get it when initialisng the class or not bother and raise warnings as appropriate.
+        self.efermi = None
         self.zero_fermi = zero_fermi
+        if self.zero_fermi is True:
+            self.efermi = 0
+        else:
+            if efermi is not None:
+                self.efermi = efermi
+
+        if zero_fermi is False and self.efermi is None:
+            warnings.warn('Fermi energy has not been set to zero but remains unspecified')
 
     def set_pdos_labels(self, pdos_labels: list):
         if (len(pdos_labels) != self.nproj):
             raise IndexError(f'PDOS has {self.nproj} projectors but only {len(pdos_labels)} provided')
+
+    def shift_dos(self, eng_shift: float, eng_unit: str = None):
+        if eng_unit is None:
+            eng_unit = self.eng_unit.lower()
+        if eng_unit not in ('ev', 'hartrees'):
+            raise ValueError('eng_unit must be "ev" or "hartrees"')
+
+        # Apply appropriate conversion
+        if eng_unit == 'hartrees' and self.eng_unit.lower() == 'ev':
+            eng_shift /= EV_TO_HARTREE
+        elif eng_unit == 'ev' and self.eng_unit.lower() == 'hartrees':
+            eng_shift *= EV_TO_HARTREE
+
+        self.engs += eng_shift
+        if self.have_pdos is True:
+            self.pdos += eng_shift
+        else:
+            self.dos += eng_shift
+
+        if self.efermi is None:
+            warnings.warn('Unable to shift Fermi energy as it is not specified')
+        else:
+            self.efermi += eng_shift
 
     def plot_data(self, ax: mpl.axes._axes.Axes,
                   fontsize: float = 20,
                   linewidth: float = 1.1,
                   fermi_linestyle: str = '--',
                   fermi_color: str = '0.5',
-                  fermi_linewidth: float = 1.0
+                  fermi_linewidth: float = 1.3
                   ):
 
-        # Set the label for the energy scale
+        # Set the label for the energy scale and do Fermi energy
         if self.zero_fermi is True:
             ax.set_xlabel(r'$E - E_\mathrm{F}$ ' + f'({self.eng_unit})', fontsize=fontsize)
+            ax.axvline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
         else:
             ax.set_xlabel(r'$E$ ' + f'({self.eng_unit})', fontsize=fontsize)
+            if self.efermi is None:
+                warnings.warn('Fermi energy not specified - skipping line')
+                ax.axvline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
 
         # Decide what we are plotting and plot it
         if self.have_pdos is True:
@@ -240,9 +279,33 @@ class DOSdata:
             ax.set_ylabel(f'DOS (electrons per {self.eng_unit})', fontsize=fontsize)
             ax.plot(self.engs, self.dos, linewidth=linewidth)
 
-        # Sort out tick labels and font sizes
+        # Sort out minor ticks, tick labels and font sizes
+        ax.minorticks_on()
+        ax.xaxis.set_minor_locator(mpl.ticker.AutoMinorLocator(2))
+        ax.yaxis.set_minor_locator(mpl.ticker.AutoMinorLocator(2))
+
         ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=8, width=1.2)
         ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=4, width=1.2)
-        ax.minorticks_on()
 
-        # TODO Add Fermi energy
+        if self.efermi is not None:
+            ax.axvline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
+
+
+def get_optados_fermi_eng(optados_outfile: str):
+    efermi, zero_fermi = None, None
+    with open(optados_outfile, 'r', encoding='ascii') as file:
+        # Loop through the OptaDOS file and get the final Fermi energy printed
+        # (in case calculation was restarted with different parameters)
+        for line in file:
+            if re.search('Fermi energy from DOS', line.strip()):
+                efermi = line.split()[6]
+            if re.search('Shift energy scale so fermi_energy=0', line.strip()):
+                logical_str = line.split()[7]
+                if logical_str == 'True':
+                    zero_fermi = True
+                elif logical_str == 'False':
+                    zero_fermi = False
+
+    return efermi, zero_fermi
+
+
