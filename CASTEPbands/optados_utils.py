@@ -263,14 +263,16 @@ class DOSdata:
         # get it when initialisng the class or not bother and raise warnings as appropriate.
         self.efermi = None
         self.zero_fermi = zero_fermi
-        if self.zero_fermi is True:
-            self.efermi = 0
-        else:
-            if efermi is not None:
-                self.efermi = efermi
 
-        if zero_fermi is False and self.efermi is None:
+        if zero_fermi is False and efermi is None:
             warnings.warn('Fermi energy has not been set to zero but remains unspecified')
+        elif zero_fermi is True and efermi is None:
+            warnings.warn('Zero Fermi scale set - assuming shift done by OptaDOS')
+            self.efermi = 0
+        elif zero_fermi is True and efermi is not None:
+            self.efermi = efermi
+            # Shift data
+            self.shift_dos(-1*efermi)
 
     def set_pdos_labels(self, pdos_labels: list):
         if len(pdos_labels) != self.nproj:
