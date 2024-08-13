@@ -78,9 +78,9 @@ class DOSdata:
                 # print(f'contents for projector {n}: {contents}')
                 for atom in contents:
                     species, site, ang_mom = atom.split()
-                    species_list += species
-                    site_list += site
-                    ang_mom_list += ang_mom
+                    species_list.append(species)
+                    site_list.append(site)
+                    ang_mom_list.append(ang_mom)
 
                 # Count number of unique species, sites and angular momentum for projector
                 if n_uniq(species_list) == 1 and n_uniq(site_list) == 1 and n_uniq(ang_mom_list) != 1:
@@ -168,7 +168,6 @@ class DOSdata:
 
             if pdos_type is None:
                 # Attempt to determine the PDOS composition if not specified
-                # print('Obtained type ', __determine_pdos_decompose(nproj, proj_contents))
                 pdos_type = __determine_pdos_decompose(proj_contents)
 
             if pdos_type not in pdos_valid_types:
@@ -225,7 +224,7 @@ class DOSdata:
             warnings.warn('Fermi energy has not been set to zero but remains unspecified')
 
     def set_pdos_labels(self, pdos_labels: list):
-        if (len(pdos_labels) != self.nproj):
+        if len(pdos_labels) != self.nproj:
             raise IndexError(f'PDOS has {self.nproj} projectors but only {len(pdos_labels)} provided')
 
     def shift_dos(self, eng_shift: float, eng_unit: str = None):
