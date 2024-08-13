@@ -20,7 +20,6 @@ EV_TO_HARTREE = 1.0/27.211386245988
 
 class DOSdata:
     # TODO Documenation
-    # TODO Spin polarised calculations
     def __init__(self,
                  optadosfile: str,
                  efermi: float = None,
@@ -56,6 +55,7 @@ class DOSdata:
         self.engs, self.dos, self.dos_sum = None, None, None
         self.nproj, self.pdos_type, self.proj_contents = None, None, None
         self.pdos, self.pdos_labels = None, None
+        self.nspins = None
 
         """
         Functions to read the OptaDOS data
@@ -77,7 +77,9 @@ class DOSdata:
                 species_list, site_list, ang_mom_list = [], [], []
                 # print(f'contents for projector {n}: {contents}')
                 for atom in contents:
-                    species, site, ang_mom = atom.split()
+                    # We don't care about spin channels for this
+                    # so only extract species, site and angular momentum.
+                    species, site, ang_mom = atom.split()[0:3]
                     species_list.append(species)
                     site_list.append(site)
                     ang_mom_list.append(ang_mom)
@@ -115,13 +117,17 @@ class DOSdata:
                 # If the book-keeping has been done correctly up to this point,
                 # everything we wish to label for a given decomposition should be contained within the
                 # first item of the contents for a given projector.
-                species, site, ang_mom = contents[0].split()
+                species, site, ang_mom = contents[0].split()[0:3]
+                spin_ch = ''
+                if self.nspins == 2:
+                    spin_ch = contents[0].split()[3]
+
                 if pdos_type == 'sites':
-                    pdos_labels[n] = f'{species} {site}'
+                    pdos_labels[n] = f'{species} {site} ({spin_ch})'
                 elif pdos_type == 'species':
-                    pdos_labels[n] = f'{species}'
+                    pdos_labels[n] = f'{species} ({spin_ch})'
                 elif pdos_type == 'species_ang':
-                    pdos_labels[n] = f'{species} ({ang_mom})'
+                    pdos_labels[n] = f'{species} ({ang_mom}) ({spin_ch})'
 
             return pdos_labels
 
@@ -132,7 +138,7 @@ class DOSdata:
 
             # Extract and store the relevant portion of the header without the dash lines.
             header, col_indx = [], []
-            nproj, i = 0, 0
+            nspins, nproj, i = 1, 0, 0
             with open(optadosfile, 'r', encoding='ascii') as file:
                 for lineno, line in enumerate(file):
                     if lineno < init_header:
@@ -141,6 +147,8 @@ class DOSdata:
                         continue
                     if line.strip().startswith('#') is False:
                         break
+                    if 'Spin Channel' in line.strip():
+                        nspins = 2
                     if 'Column:' in line and 'contains:' in line:
                         # We might as well sneak counting how many projectors we have in here.
                         nproj += 1
@@ -156,14 +164,19 @@ class DOSdata:
                     col_contents = header[col_indx[n]:]
                 else:
                     col_contents = header[col_indx[n]:col_indx[n+1]]
+
                 # Remove the atom and angular momentum labels
                 col_contents = col_contents[2:]
-
                 cur_proj = []
                 for atom in col_contents:
-                    species, site, ang_mom = atom.split()[1:4]
-                    cur_proj.append(f'{species} {site} {ang_mom}')
-                    # print(f'Projector {n} contains {species} {site} {ang_mom} {cur_proj}')
+                    if nspins == 2:
+                        species, site, ang_mom, spin_ch = atom.split()[1:5]
+                        cur_proj.append(f'{species} {site} {ang_mom} {spin_ch}')
+                        # print(f'Projector {n} contains {species} {site} {ang_mom} {spin_ch} {cur_proj}')
+                    else:
+                        species, site, ang_mom = atom.split()[1:4]
+                        cur_proj.append(f'{species} {site} {ang_mom}')
+                        # print(f'Projector {n} contains {species} {site} {ang_mom} {cur_proj}')
                 proj_contents[n] = cur_proj
 
             if pdos_type is None:
@@ -178,6 +191,7 @@ class DOSdata:
                 self.pdos_labels = __pdos_default_labels(nproj, proj_contents, pdos_type)
 
             # Copy everything into the class
+            self.nspins = nspins
             self.nproj, self.pdos_type = nproj, pdos_type
             self.proj_contents = proj_contents
 
@@ -188,10 +202,45 @@ class DOSdata:
             self.pdos = self.pdos.transpose()
 
         def __dos_read():
+            # Read the header and check for spin polarisation
+            nspins = 1  # assume no spin until told otherwise
+            with open(optadosfile, 'r', encoding='ascii') as file:
+                for line in file:
+                    if line.strip().startswith('#') is False:
+                        break
+                    if 'spin' in line.strip():
+                        nspins = 2
+                        break
+
+            # Read data and then perform sanity checks that the format is what we expect
             dosdata = np.loadtxt(optadosfile, dtype=float, comments='#', encoding='ascii')
+            if nspins == 1:
+                if dosdata.shape[1] != 3:
+                    raise AssertionError(
+                        f'Expected 3 columns for non spin-polarised calculation but have {dosdata.ndim} instead.'
+                    )
+            if nspins == 2:
+                if dosdata.shape[1] != 5:
+                    raise AssertionError(
+                        f'Expected 5 columns for spin-polarised calculation but have {dosdata.ndim} instead.'
+                    )
+
+            # Store everything in the class
+            nengs = dosdata.shape[0]
+            self.engs = np.empty(nengs, dtype=float)
+            self.dos = np.empty((nspins, nengs), dtype=float)
+            self.dos_sum = np.empty((nspins, nengs), dtype=float)
+
+            self.nspins = nspins
             self.engs = dosdata[:, 0]  # eV
-            self.dos = dosdata[:, 1]  # electron per eV
-            self.dos_sum = dosdata[:, 2]  # electrons (integrated DOS)
+            if nspins == 2:
+                self.dos[0] = dosdata[:, 1]  # electron per eV
+                self.dos[1] = dosdata[:, 2]  # electron per eV
+                self.dos_sum[0] = dosdata[:, 3]  # electrons (integrated DOS)
+                self.dos_sum[1] = dosdata[:, 4]  # electrons (integrated DOS)
+            else:
+                self.dos[0] = dosdata[:, 1]  # electron per eV
+                self.dos_sum[0] = dosdata[:, 2]  # electrons (integrated DOS)
 
         # Now read the data accordingly
         if self.have_pdos is True:
