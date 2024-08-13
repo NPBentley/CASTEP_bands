@@ -277,6 +277,7 @@ class DOSdata:
     def set_pdos_labels(self, pdos_labels: list):
         if len(pdos_labels) != self.nproj:
             raise IndexError(f'PDOS has {self.nproj} projectors but only {len(pdos_labels)} provided')
+        self.pdos_labels = pdos_labels
 
     def shift_dos(self, eng_shift: float, eng_unit: str = None):
         if eng_unit is None:
