@@ -122,14 +122,14 @@ class DOSdata:
                 species, site, ang_mom = contents[0].split()[0:3]
                 spin_ch = ''
                 if self.nspins == 2:
-                    spin_ch = contents[0].split()[3]
+                    spin_ch = f'({contents[0].split()[3]})'
 
                 if pdos_type == 'sites':
-                    pdos_labels[n] = f'{species} {site} ({spin_ch})'
+                    pdos_labels[n] = f'{species} {site} {spin_ch}'
                 elif pdos_type == 'species':
-                    pdos_labels[n] = f'{species} ({spin_ch})'
+                    pdos_labels[n] = f'{species} {spin_ch}'
                 elif pdos_type == 'species_ang':
-                    pdos_labels[n] = f'{species} ({ang_mom}) ({spin_ch})'
+                    pdos_labels[n] = f'{species} ({ang_mom}) {spin_ch}'
 
             return pdos_labels
 
