@@ -27,6 +27,7 @@ class DOSdata:
                  convert_to_au: bool = False,
                  is_pdos: bool = None,
                  pdos_type: str = None,
+                 optados_shifted: bool = True,
                  ):
         # TODO Documentation
         # First, decide whether we have a PDOS or DOS if not specified
@@ -263,23 +264,25 @@ class DOSdata:
         # get it when initialisng the class or not bother and raise warnings as appropriate.
         self.efermi = None
         self.zero_fermi = zero_fermi
+        self.optados_shifted = optados_shifted
 
         if zero_fermi is False and efermi is None:
             warnings.warn('Fermi energy has not been set to zero but remains unspecified')
         elif zero_fermi is True and efermi is None:
-            warnings.warn('Zero Fermi scale set - assuming shift done by OptaDOS')
+            warnings.warn('Zero Fermi scale set - assuming shift done by OptaDOS, CHECK PLOT CAREFULLY!')
             self.efermi = 0
         elif zero_fermi is True and efermi is not None:
             self.efermi = efermi
-            # Shift data
-            self.shift_dos(-1*efermi)
+            # Shift data if OptaDOS didn't do it for us
+            if optados_shifted is False:
+                self.shift_dos_eng(-1*efermi)
 
     def set_pdos_labels(self, pdos_labels: list):
         if len(pdos_labels) != self.nproj:
             raise IndexError(f'PDOS has {self.nproj} projectors but only {len(pdos_labels)} provided')
         self.pdos_labels = pdos_labels
 
-    def shift_dos(self, eng_shift: float, eng_unit: str = None):
+    def shift_dos_eng(self, eng_shift: float, eng_unit: str = None):
         if eng_unit is None:
             eng_unit = self.eng_unit.lower()
         if eng_unit not in ('ev', 'hartrees'):
@@ -292,11 +295,6 @@ class DOSdata:
             eng_shift *= EV_TO_HARTREE
 
         self.engs += eng_shift
-        if self.have_pdos is True:
-            self.pdos += eng_shift
-        else:
-            self.dos += eng_shift
-
         if self.efermi is None:
             warnings.warn('Unable to shift Fermi energy as it is not specified')
         else:
