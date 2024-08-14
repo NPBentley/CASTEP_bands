@@ -10,6 +10,7 @@ import re
 import warnings
 
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 
 import CASTEPbands.Spectral as spec
@@ -301,32 +302,110 @@ class DOSdata:
             self.efermi += eng_shift
 
     def plot_data(self, ax: mpl.axes._axes.Axes,
+                  Elim: list = None,
+                  do_proj: list = None,
+                  do_axes_labels: bool = True,
                   fontsize: float = 20,
                   linewidth: float = 1.1,
+                  linecolor: 'str|list' = None,
+                  orient: str = 'horizontal',
                   fermi_linestyle: str = '--',
-                  fermi_color: str = '0.5',
+                  fermi_color: str = None,
                   fermi_linewidth: float = 1.3
                   ):
 
-        # Set the label for the energy scale and do Fermi energy
+        orient = orient.lower()
+        if orient not in ('horizontal', 'vertical'):
+            # Aliases for orient argument
+            if orient == 'h':
+                orient = 'horizontal'
+            elif orient == 'v':
+                orient = 'vertical'
+            else:
+                raise ValueError(f"Invalid orientation {orient}: must be 'h', 'horizontal', 'v', 'vertical'")
+
+        # Decide which projectors to use for PDOS
+        if do_proj is None and self.have_pdos is True:
+            do_proj = np.arange(self.nproj, dtype=int)
+
+        if do_proj is not None:
+            if np.amax(do_proj) >= self.nproj:
+                raise IndexError(
+                    f'do_proj specified maximum projector index of {np.amax(do_proj)} ' +
+                    f'but DOSdata only contains {self.nproj} projectors'
+                )
+
+        # Set the default line colour (for DOS mainly)
+        # Additionally, set the Fermi energy line colour if not set already.
+        if linecolor is None and self.have_pdos is False:
+            if self.nspins == 2:
+                linecolor = ['red', 'blue']
+                if fermi_color is None:
+                    fermi_color = '0.5'
+            else:
+                linecolor = 'black'
+                if fermi_color is None:
+                    fermi_color = 'red'
+        elif linecolor is None and self.have_pdos is True:
+            # For PDOS, we just run through the user's default colours in rcParams.
+            linecolor = [None for n in range(len(do_proj))]
+
+        # Check user's colour choices
+        if linecolor is not None and self.have_pdos is True:
+            if self.have_pdos and len(linecolor) != do_proj:
+                raise IndexError(f'Number of line colours ({len(linecolor)}) ' +
+                                 f'does not match number of projectors {len(do_proj)}')
+
+        # If Fermi energy line colour is not set (which it won't be if doing a PDOS), set it now.
+        if fermi_color is None:
+            fermi_color = '0.5'
+
+        # Set the label for the energy scale and do Fermi energy line
         if self.zero_fermi is True:
-            ax.set_xlabel(r'$E - E_\mathrm{F}$ ' + f'({self.eng_unit})', fontsize=fontsize)
-            ax.axvline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
+            eng_label = r'$E - E_\mathrm{F}$ ' + f'({self.eng_unit})'
         else:
-            ax.set_xlabel(r'$E$ ' + f'({self.eng_unit})', fontsize=fontsize)
-            if self.efermi is None:
-                warnings.warn('Fermi energy not specified - skipping line')
+            eng_label = r'$E$ ' + f'({self.eng_unit})'
+
+        if self.efermi is None:
+            warnings.warn('Fermi energy not specified - skipping line')
+        else:
+            if orient == 'vertical':
+                ax.axhline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
+            else:
                 ax.axvline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
 
-        # Decide what we are plotting and plot it
+        # Finally, decide what we are plotting and plot it
         if self.have_pdos is True:
-            ax.set_ylabel(f'PDOS (electrons per {self.eng_unit})', fontsize=fontsize)
+            data_label = f'PDOS (electrons per {self.eng_unit})'
+
             # For PDOS, loop around all projectors and plot with labels
-            for n in range(self.nproj):
-                ax.plot(self.engs, self.pdos[n], linewidth=linewidth, label=self.pdos_labels[n])
+            if orient == 'vertical':
+                for n in do_proj:
+                    ax.plot(self.pdos[n], self.engs, label=self.pdos_labels[n],
+                            color=linecolor[n], linewidth=linewidth)
+            else:
+                for n in do_proj:
+                    ax.plot(self.engs, self.pdos[n], label=self.pdos_labels[n],
+                            color=linecolor[n], linewidth=linewidth)
         else:
-            ax.set_ylabel(f'DOS (electrons per {self.eng_unit})', fontsize=fontsize)
-            ax.plot(self.engs, self.dos, linewidth=linewidth)
+            data_label = f'DOS (electrons per {self.eng_unit})'
+            if orient == 'vertical':
+                for ns in range(self.nspins):
+                    ax.plot(self.dos[ns], self.engs,
+                            color=linecolor[ns], linewidth=linewidth)
+            else:
+                for ns in range(self.nspins):
+                    ax.plot(self.engs, self.dos[ns],
+                            color=linecolor[ns], linewidth=linewidth)
+
+        # Add axes labels
+        if do_axes_labels is True:
+            if orient == 'vertical':
+                ax.set_xlabel(data_label, fontsize=fontsize)
+                ax.set_ylabel(eng_label, fontsize=fontsize)
+            else:
+                ax.set_xlabel(eng_label, fontsize=fontsize)
+                ax.set_ylabel(data_label, fontsize=fontsize)
 
         # Sort out minor ticks, tick labels and font sizes
         ax.minorticks_on()
@@ -336,8 +415,16 @@ class DOSdata:
         ax.tick_params(axis='both', which='major', labelsize=fontsize * 0.8, length=8, width=1.2)
         ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=4, width=1.2)
 
-        if self.efermi is not None:
-            ax.axvline(self.efermi, linewidth=fermi_linewidth, linestyle=fermi_linestyle, color=fermi_color)
+        # Set energy scale limits
+        if Elim is None:
+            if self.efermi is not None:
+                Elim = [self.efermi - 10, self.efermi + 10]
+
+        if Elim is not None:
+            if orient == 'vertical':
+                ax.set_ylim(Elim)
+            else:
+                ax.set_xlim(Elim)
 
 
 def get_optados_fermi_eng(optados_outfile: str):
