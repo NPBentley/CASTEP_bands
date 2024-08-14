@@ -352,7 +352,7 @@ class DOSdata:
 
         # Check user's colour choices
         if linecolor is not None and self.have_pdos is True:
-            if self.have_pdos and len(linecolor) != do_proj:
+            if self.have_pdos and len(linecolor) != len(do_proj):
                 raise IndexError(f'Number of line colours ({len(linecolor)}) ' +
                                  f'does not match number of projectors {len(do_proj)}')
 
