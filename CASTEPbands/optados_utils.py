@@ -445,3 +445,84 @@ def get_optados_fermi_eng(optados_outfile: str):
     return efermi, zero_fermi
 
 
+def plot_bs_with_dos(castep_seed: str,
+                     optados_file: str,
+                     ax_bs: mpl.axes._axes.Axes,
+                     ax_dos: mpl.axes._axes.Axes,
+                     Elim: list = None,
+                     zero_fermi: bool = True,
+                     optados_shifted: bool = True,
+                     fontsize: float = 20.0,
+                     use_fermi: str = 'optados',
+                     optados_outfile: bool = None,
+                     do_proj: bool = None,
+                     tick_direction='in',
+                     ):
+
+    use_fermi = use_fermi.lower()
+    if use_fermi not in ('castep', 'optados'):
+        raise ValueError('use_fermi must be one of "castep" or "optados"')
+
+    if optados_outfile is None:
+        optados_outfile = castep_seed + '.odo'
+
+    # If the OptaDOS output file exists, we can then do some sanity checks
+    try:
+        open(optados_file, 'r', encoding='ascii')
+    except FileNotFoundError:
+        pass
+    else:
+        *_, did_shift = get_optados_fermi_eng(optados_outfile)
+        if did_shift != optados_shifted:
+            raise ValueError(f'OptaDOS reports zero Fermi of {did_shift} but {optados_shifted=}')
+
+    # This requires some careful book-keeping to make sure everything lines up nicely.
+    # First read the CASTEP file and note the raw Fermi energy.
+    bs_data = spec.Spectral('Si', zero_fermi=False)
+    castep_efermi = bs_data.Ef
+
+    # If we want to use the OptaDOS Fermi energy make sure to read it from the file, and
+    # while we are at it make sure to check if OptaDOS actually zeroed the Fermi energy.
+    if use_fermi == 'optados':
+        optados_efermi, did_shift = get_optados_fermi_eng(optados_outfile)
+        if did_shift != optados_shifted:
+            raise AssertionError(f'OptaDOS reports zero Fermi of {did_shift} but {optados_shifted=}')
+        if optados_efermi is None:
+            # Likely specified using CASTEP fermi energy for OptaDOS and so OptaDOS will not write it out
+            raise AssertionError('Could not find OptaDOS fermi energy, did you make sure OptaDOS actually calculates it?')
+
+        # Set the CASTEP Fermi energy to the OptaDOS Fermi energy
+        castep_efermi = optados_efermi
+
+    # Now shift data accordingly
+    if zero_fermi is True:
+        bs_data.shift_bands(castep_efermi)
+        bs_data.zero_fermi = True
+
+    # Read in the OptaDOS data
+    dos_data = DOSdata(optados_file, efermi=castep_efermi, zero_fermi=zero_fermi, optados_shifted=optados_shifted)
+
+    # Plot the band structure
+    bs_data.plot_bs(ax_bs, Elim=Elim, fontsize=fontsize)
+
+    # Plot the density of states
+    dos_data.plot_data(ax_dos, Elim=Elim, fontsize=fontsize, orient='vertical', do_proj=do_proj)
+
+    # Set energy scale
+    if Elim is None:
+        if zero_fermi is True:
+            castep_efermi = 0
+        Elim = [castep_efermi - 10, castep_efermi + 10]
+
+    # Remove the y-axis label as they are the same
+    ax_dos.set_ylabel('')
+
+    # Adjust the tick labels for the plot
+    ax_bs.tick_params(axis='both', which='major', direction=tick_direction, labelsize=fontsize * 0.8, length=8, width=1.2,
+                      top=True, left=True, right=True, bottom=True)
+    ax_bs.tick_params(axis='y', which='minor', direction=tick_direction, labelsize=fontsize * 0.8, length=4, width=1.2,
+                      top=True, left=True, right=True, bottom=True)
+    ax_dos.tick_params(axis='both', which='major', direction=tick_direction, labelsize=fontsize * 0.8, length=8, width=1.2,
+                       top=True, left=True, right=True, bottom=True)
+    ax_dos.tick_params(axis='both', which='minor', direction=tick_direction, labelsize=fontsize * 0.8, length=4, width=1.2,
+                       top=True, left=True, right=True, bottom=True)
