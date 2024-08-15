@@ -1,8 +1,10 @@
-"""This module handles visualisation of output from OptaDOS
+"""This module handles visualisation of output from OptaDOS.
 
 Currently, both density of states and partial density of states (DOS) and (PDOS) are currently supported.
 This module is designed to be independent of the main CASTEPbands module as far as possible,
 although it is anticipated both will be used in tandem, for instance a band structure plot alongside its associated PDOS.
+
+Default energy units are eV (unless specified otherwise).
 """
 # Created by : V Ravindran, 12/08/2024
 
@@ -10,7 +12,6 @@ import re
 import warnings
 
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 
 import CASTEPbands.Spectral as spec
@@ -20,7 +21,56 @@ EV_TO_HARTREE = 1.0/27.211386245988
 
 
 class DOSdata:
-    # TODO Documenation
+    """The density of states data from OptaDOS.
+
+    Actual density of states data is stored in dos and pdos arrays. The dos array has the shape
+    (spins, nengs) while the pdos is stored in array shaped (proj, nengs).
+
+    Attributes
+    ----------
+    have_pdos : bool
+        is a partial density of states calculation
+    nspins : int
+        number of spin components for density of states
+    nproj : int
+        number of projectors for partial density of states.
+    engs : np.ndarray
+        energies for density of states
+    dos : np.ndarray
+        density of states (states per energy unit [eV])
+        shape (nspins, len(engs))
+    dos_sum : np.ndarray
+        integrated density of states (units: states)
+        shape (nspins, len(engs))
+    pdos : np.ndarray
+        partial density of states (states per energy unit [eV])
+        shape (nprojectors, len(engs))
+    pdos_contents : dict
+        contents of each PDOS projector (by 'species ang.mom and spin')
+        taken from the OptaDOS header.
+    pdos_labels : list
+        list of labels to use for PDOS plot
+    pdos : np.ndarray
+        partial density of states (states per energy unit [eV])
+    eng_unit : str
+        unit of energy for data
+    efermi : float
+        Fermi energy
+    zero_fermi : bool
+        energy scale set such that Fermi energy is 0.
+    optados_shifted : bool
+        Did OptaDOS perform the shift already
+
+    Methods
+    -------
+    plot_data
+        Plots the density of states data from OptaDOS.
+    set_pdos_labels
+        Sets the label for the PDOS plot
+    shift_dos_eng
+        Shifts the energy scale for density of states and partial density of states data.
+    """
+
     def __init__(self,
                  optadosfile: str,
                  efermi: float = None,
@@ -30,7 +80,38 @@ class DOSdata:
                  pdos_type: str = None,
                  optados_shifted: bool = True,
                  ):
-        # TODO Documentation
+        """Initialises the density of states data.
+
+        Parameters
+        ----------
+        optadosfile : str
+            OptaDOS data file containing PDOS data
+        efermi : float
+            Fermi energy to use for DOS
+        zero_fermi : bool
+            set energy scale such that Fermi energy is zero.
+        convert_to_au : bool
+            converts data from eV to atomic units
+        is_pdos : bool
+            Is data PDOS data or DOS.
+            This option is left as a fall-back option in case the OptaDOS header is changed.
+            Otherwise, it will be inferred from the file if not specified.
+        pdos_type : str
+            type of projection to use for PDOS. Will be inferred from file if not specified.
+        optados_shifted : bool
+            Did OptaDOS perform the shift already
+
+        Raises
+        ------
+        AssertionError
+            Density of states data file has more columns than header implies.
+        ValueError
+            Invalid parameter for optional argument specified.
+        IOError
+            Data contents could not be determinde from file header alone.
+            Requires manual intervention using is_pdos.
+        """
+
         # First, decide whether we have a PDOS or DOS if not specified
         # by reading the contents of the header.
         dos_header = ' #    Density of States'
@@ -256,10 +337,11 @@ class DOSdata:
         if convert_to_au:
             self.eng_unit = 'Hartrees'
             self.engs *= EV_TO_HARTREE
+            # NB PDOS/DOS have units of states per eV.
             if self.have_pdos:
-                self.pdos *= EV_TO_HARTREE
+                self.pdos /= EV_TO_HARTREE
             else:
-                self.dos *= EV_TO_HARTREE
+                self.dos /= EV_TO_HARTREE
 
         # OptaDOS does not write the Fermi energy to the output file. We thus need to either
         # get it when initialisng the class or not bother and raise warnings as appropriate.
@@ -279,11 +361,39 @@ class DOSdata:
                 self.shift_dos_eng(-1*efermi)
 
     def set_pdos_labels(self, pdos_labels: list):
+        """Set the labels to use for the PDOS manually.
+
+        Parameters
+        ----------
+        pdos_labels : list
+            labels to use for pdos
+        """
+
         if len(pdos_labels) != self.nproj:
             raise IndexError(f'PDOS has {self.nproj} projectors but only {len(pdos_labels)} provided')
         self.pdos_labels = pdos_labels
 
     def shift_dos_eng(self, eng_shift: float, eng_unit: str = None):
+        """Shifts energy scale for density of states plot.
+
+        If eng_unit is not specified, the energy unit taken from the class. Otherwise the
+        appropriate conversion will be applied.
+
+        Parameters
+        ----------
+        eng_shift : float
+            amount to shift energy scale by
+        eng_unit : str
+            energy unit for eng_shift
+
+        Raises
+        ------
+        ValueError
+            invalid energy unit specified
+
+
+        """
+
         if eng_unit is None:
             eng_unit = self.eng_unit.lower()
         if eng_unit not in ('ev', 'hartrees'):
@@ -313,6 +423,45 @@ class DOSdata:
                   fermi_color: str = None,
                   fermi_linewidth: float = 1.3
                   ):
+        """Plots the data from OptaDOS.
+
+        Parameters
+        ----------
+        ax : mpl.axes._axes.Axes
+            axes for density of states
+        Elim : list
+            energy limit (in unit of density of states data)
+        do_proj : list
+            projectors to use for plot (specified by index starting from 0 for 1st projector).
+        do_axes_labels : bool
+            add axes labels
+        fontsize : float
+            fontsize for plot
+        linewidth : float
+            widht of lines for density of states data
+        linecolor : 'str|list'
+            colours for density of states data. If a PDOS calculation, then colours need to be
+            specified for each projector as a list.
+        orient : str
+            orientation of plot ('vertical'/'v' or 'horizontal'/'h')
+            Horizontal sets the energy scale on the horizontal/x-axis.
+        fermi_linestyle : str
+            line style for Fermi energy
+        fermi_color : str
+            line colour for Fermi energy
+        fermi_linewidth : float
+            line width for Fermi energy
+
+        Raises
+        ------
+        IndexError
+            maximum projector in do_proj exceeded number of available projectors
+            number of lines specied for linecolor does not match number of projectors.
+        ValueError
+            Invalid parameter specified.
+
+
+        """
 
         orient = orient.lower()
         if orient not in ('horizontal', 'vertical'):
@@ -428,6 +577,24 @@ class DOSdata:
 
 
 def get_optados_fermi_eng(optados_outfile: str):
+    """Obtain the Fermi energy from OptaDOS output file.
+
+    This also checks the OptaDOS calculation header in the output file to see if the Fermi energy
+    was zeroed for us.
+
+    Parameters
+    ----------
+    optados_outfile : str
+        OptaDOS output file
+
+    Returns
+    -------
+    efermi : float
+        Fermi energy (in eV)
+    zero_fermi : bool
+        Did OptaDOS zero the Fermi energy?
+    """
+
     efermi, zero_fermi = None, None
     with open(optados_outfile, 'r', encoding='ascii') as file:
         # Loop through the OptaDOS file and get the final Fermi energy printed
@@ -456,8 +623,60 @@ def plot_bs_with_dos(castep_seed: str,
                      use_fermi: str = 'optados',
                      optados_outfile: bool = None,
                      do_proj: bool = None,
-                     tick_direction='in',
+                     tick_direction: str = 'in',
                      ):
+    """Plot band structure with associated density of states.
+
+    This requires two separate calculations from CASTEP, a band structure calculation and a density
+    of states calculation. The actual density of states will be from OptaDOS data along with the
+    Fermi energy. This function ensures all the book-keeping is done correctly discarding the CASTEP
+    Fermi energy if requested and ensuring both plots use the same energy scale.
+
+    Parameters
+    ----------
+    castep_seed : str
+        CASTEP seedname. This is also the same as the OptaDOS seedname.
+    optados_file : str
+        OptaDOS DOS or PDOS output file (.dat)
+    ax_bs : mpl.axes._axes.Axes
+        axes for band structure plot
+    ax_dos : mpl.axes._axes.Axes
+        axes for density of states
+    Elim : list
+        energy limit (in eV)
+    zero_fermi : bool
+        set energy scale such that Fermi energy is at zero.
+    optados_shifted : bool
+        OptaDOS performs the energy shift for Zero Fermi for us.
+
+        Ensures that a double shift is not performed.
+        If the OptaDOS output file is present, then cross-checks
+        will be performed for sanity.
+    fontsize : float
+        font size to use for plot
+    use_fermi : str
+        Fermi energy to use for plot ('castep' or 'optados')
+        Default : 'optados'
+    optados_outfile : bool
+        OptaDOS output file (.odo)
+    do_proj : bool
+        projectors to use for plot (specified by index starting from 0 for 1st projector).
+    tick_direction : str
+        direction of ticks for axes ('in', 'out' or 'inout')
+        Default : 'inout'
+
+    Returns
+    -------
+
+    Raises
+    ------
+    AssertionError
+        Conflicting argument options with OptaDOS calculation parameters.
+    ValueError
+        Invalid parameter specified for use_fermi.
+
+
+    """
 
     use_fermi = use_fermi.lower()
     if use_fermi not in ('castep', 'optados'):
@@ -474,7 +693,7 @@ def plot_bs_with_dos(castep_seed: str,
     else:
         *_, did_shift = get_optados_fermi_eng(optados_outfile)
         if did_shift != optados_shifted:
-            raise ValueError(f'OptaDOS reports zero Fermi of {did_shift} but {optados_shifted=}')
+            raise AssertionError(f'OptaDOS reports zero Fermi of {did_shift} but {optados_shifted=}')
 
     # This requires some careful book-keeping to make sure everything lines up nicely.
     # First read the CASTEP file and note the raw Fermi energy.
