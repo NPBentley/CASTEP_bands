@@ -697,7 +697,7 @@ def plot_bs_with_dos(castep_seed: str,
 
     # This requires some careful book-keeping to make sure everything lines up nicely.
     # First read the CASTEP file and note the raw Fermi energy.
-    bs_data = spec.Spectral('Si', zero_fermi=False)
+    bs_data = spec.Spectral(castep_seed, zero_fermi=False)
     castep_efermi = bs_data.Ef
 
     # If we want to use the OptaDOS Fermi energy make sure to read it from the file, and
