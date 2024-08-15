@@ -269,10 +269,6 @@ class DOSdata:
             if pdos_type not in pdos_valid_types:
                 raise ValueError(f'Invalid value of pdos_type "{pdos_type}"')
 
-            # If we are not using a custom labels, initialise the pdos labels appropriately.
-            if pdos_type != 'custom':
-                self.pdos_labels = __pdos_default_labels(nproj, proj_contents, pdos_type)
-
             # Copy everything into the class
             self.nspins = nspins
             self.nproj, self.pdos_type = nproj, pdos_type
@@ -283,6 +279,10 @@ class DOSdata:
             self.engs = pdos_data[:, 0]  # eV
             self.pdos = pdos_data[:, 1:]  # electron per eV
             self.pdos = self.pdos.transpose()
+
+            # If we are not using a custom labels, initialise the pdos labels appropriately.
+            if pdos_type != 'custom':
+                self.pdos_labels = __pdos_default_labels(nproj, proj_contents, pdos_type)
 
         def __dos_read():
             # Read the header and check for spin polarisation
@@ -602,6 +602,7 @@ def get_optados_fermi_eng(optados_outfile: str):
         for line in file:
             if re.search('Fermi energy from DOS', line.strip()):
                 efermi = line.split()[6]
+                efermi = float(efermi)
             if re.search('Shift energy scale so fermi_energy=0', line.strip()):
                 logical_str = line.split()[7]
                 if logical_str == 'True':
