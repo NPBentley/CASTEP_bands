@@ -345,7 +345,7 @@ class DOSdata:
 
         # OptaDOS does not write the Fermi energy to the output file. We thus need to either
         # get it when initialisng the class or not bother and raise warnings as appropriate.
-        self.efermi = None
+        self.efermi = efermi
         self.zero_fermi = zero_fermi
         self.optados_shifted = optados_shifted
 
@@ -354,10 +354,9 @@ class DOSdata:
         elif zero_fermi is True and efermi is None:
             warnings.warn('Zero Fermi scale set - assuming shift done by OptaDOS, CHECK PLOT CAREFULLY!')
             self.efermi = 0
-        elif zero_fermi is True and efermi is not None:
-            self.efermi = efermi
+        elif efermi is not None:
             # Shift data if OptaDOS didn't do it for us
-            if optados_shifted is False:
+            if zero_fermi is True and optados_shifted is False:
                 self.shift_dos_eng(-1*efermi)
 
     def set_pdos_labels(self, pdos_labels: list):
@@ -529,12 +528,12 @@ class DOSdata:
 
             # For PDOS, loop around all projectors and plot with labels
             if orient == 'vertical':
-                for n in do_proj:
-                    ax.plot(self.pdos[n], self.engs, label=self.pdos_labels[n],
+                for n, proj in enumerate(do_proj):
+                    ax.plot(self.pdos[proj], self.engs, label=self.pdos_labels[proj],
                             color=linecolor[n], linewidth=linewidth)
             else:
                 for n in do_proj:
-                    ax.plot(self.engs, self.pdos[n], label=self.pdos_labels[n],
+                    ax.plot(self.engs, self.pdos[proj], label=self.pdos_labels[proj],
                             color=linecolor[n], linewidth=linewidth)
         else:
             data_label = f'DOS (electrons per {self.eng_unit})'
