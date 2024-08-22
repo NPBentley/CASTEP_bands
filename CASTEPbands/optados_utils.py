@@ -536,7 +536,7 @@ class DOSdata:
                     ax.plot(self.pdos[proj], self.engs, label=self.pdos_labels[proj],
                             color=linecolor[n], linewidth=linewidth)
             else:
-                for n in do_proj:
+                for n, proj in enumerate(do_proj):
                     ax.plot(self.engs, self.pdos[proj], label=self.pdos_labels[proj],
                             color=linecolor[n], linewidth=linewidth)
         else:
@@ -588,7 +588,7 @@ class DOSdata:
             ax.set_xlim(Elim)
 
 
-def get_optados_fermi_eng(optados_outfile: str):
+def get_optados_fermi_eng(optados_outfile: str, return_fermi_src: bool = False):
     """Obtain the Fermi energy from OptaDOS output file.
 
     This also checks the OptaDOS calculation header in the output file to see if the Fermi energy
@@ -598,6 +598,8 @@ def get_optados_fermi_eng(optados_outfile: str):
     ----------
     optados_outfile : str
         OptaDOS output file
+    return_fermi_src : bool
+        Return the source of the Fermi energy ('castep' or 'optados')
 
     Returns
     -------
@@ -607,14 +609,18 @@ def get_optados_fermi_eng(optados_outfile: str):
         Did OptaDOS zero the Fermi energy?
     """
 
-    efermi, zero_fermi = None, None
+    efermi, zero_fermi, fermi_src = None, None, ''
     with open(optados_outfile, 'r', encoding='ascii') as file:
         # Loop through the OptaDOS file and get the final Fermi energy printed
         # (in case calculation was restarted with different parameters)
         for line in file:
             if re.search('Fermi energy from DOS', line.strip()):
-                efermi = line.split()[6]
-                efermi = float(efermi)
+                efermi = float(line.split()[6])
+                fermi_src = 'optados'
+            elif re.search('Set fermi energy from file', line.strip()):
+                efermi = float(line.split()[7])
+                fermi_src = 'castep'
+
             if re.search('Shift energy scale so fermi_energy=0', line.strip()):
                 logical_str = line.split()[7]
                 if logical_str == 'True':
@@ -622,7 +628,10 @@ def get_optados_fermi_eng(optados_outfile: str):
                 elif logical_str == 'False':
                     zero_fermi = False
 
-    return efermi, zero_fermi
+    if return_fermi_src is True:
+        return efermi, zero_fermi, fermi_src
+    else:
+        return efermi, zero_fermi
 
 
 def plot_bs_with_dos(castep_seed: str,
