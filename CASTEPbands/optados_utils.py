@@ -412,6 +412,7 @@ class DOSdata:
 
     def plot_data(self, ax: mpl.axes._axes.Axes,
                   Elim: list = None,
+                  dos_lim: list = None,
                   do_proj: list = None,
                   do_axes_labels: bool = True,
                   fontsize: float = 20,
@@ -429,7 +430,10 @@ class DOSdata:
         ax : mpl.axes._axes.Axes
             axes for density of states
         Elim : list
-            energy limit (in unit of density of states data)
+            energy limit (units based on class data)
+        dos_lim : list
+            range of PDOS plot
+            (units will be either states per eV or states depending on whether integrated or not)
         do_proj : list
             projectors to use for plot (specified by index starting from 0 for 1st projector).
         do_axes_labels : bool
@@ -568,11 +572,20 @@ class DOSdata:
             if self.efermi is not None:
                 Elim = [self.efermi - 10, self.efermi + 10]
 
-        if Elim is not None:
+        # Set density of states limits
+        if dos_lim is None:
+            # TODO Implement autoscale for PDOS
+            pass
+        else:
             if orient == 'vertical':
-                ax.set_ylim(Elim)
+                ax.set_xlim(dos_lim)
             else:
-                ax.set_xlim(Elim)
+                ax.set_ylim(dos_lim)
+
+        if orient == 'vertical':
+            ax.set_ylim(Elim)
+        else:
+            ax.set_xlim(Elim)
 
 
 def get_optados_fermi_eng(optados_outfile: str):
@@ -617,6 +630,7 @@ def plot_bs_with_dos(castep_seed: str,
                      ax_bs: mpl.axes._axes.Axes,
                      ax_dos: mpl.axes._axes.Axes,
                      Elim: list = None,
+                     dos_lim: list = None,
                      zero_fermi: bool = True,
                      optados_shifted: bool = True,
                      fontsize: float = 20.0,
@@ -644,6 +658,9 @@ def plot_bs_with_dos(castep_seed: str,
         axes for density of states
     Elim : list
         energy limit (in eV)
+    dos_lim : list
+        range of PDOS plot
+        (units will be either states per eV or states depending on whether integrated or not)
     zero_fermi : bool
         set energy scale such that Fermi energy is at zero.
     optados_shifted : bool
@@ -725,7 +742,8 @@ def plot_bs_with_dos(castep_seed: str,
     bs_data.plot_bs(ax_bs, Elim=Elim, fontsize=fontsize)
 
     # Plot the density of states
-    dos_data.plot_data(ax_dos, Elim=Elim, fontsize=fontsize, orient='vertical', do_proj=do_proj)
+    dos_data.plot_data(ax_dos, Elim=Elim, dos_lim=dos_lim,
+                       fontsize=fontsize, orient='vertical', do_proj=do_proj)
 
     # Set energy scale
     if Elim is None:
