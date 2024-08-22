@@ -17,4 +17,5 @@ plot_bs_with_dos(castep_seed, pdos_file,
                  fontsize=fontsize,
                  optados_shifted=False, use_fermi=use_fermi)
 ax_dos.legend(loc='upper right')
+plt.savefig(castep_seed+'bs_pdos.png')
 plt.show()
