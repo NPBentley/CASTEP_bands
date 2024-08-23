@@ -206,6 +206,79 @@ def add_vb_cb(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
                     label=labels[1])
 
 
+def color_by_occ(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
+                 do_bands: str = 'both',
+                 colors: list = ['b', 'r'],
+                 linewidth: float = 1.2, linestyle: str = '-',
+                 spin_index: list = None):
+    """Colour bands by occupancies.
+
+    This assumes no weird crossings or anything funny, we simply count the number of electrons
+    occupying each state.
+
+    Parameters
+    ----------
+    spec : Spectral.Spectral
+        band structure to plot
+    ax : mpl.axes._axes.Axes
+        axes to add band structure to
+    do_bands : str
+        specify whether to plot occupied or unoccupied bands or both
+    colors : list
+        colours to use for occupied and unoccupied bands.
+    linewidth : float
+        width of lines for bands
+    linestyle : str
+        style of lines for bands
+    spin_index : list
+        which spin channels to plot if spin polarised.
+
+    Raises
+    ------
+    ValueError
+        Invaid parameter option specified.
+
+    """
+
+    if do_bands not in ('occ', 'unocc', 'both'):
+        raise ValueError(f'{do_bands=} must be one of: "occ", "unocc", "both"')
+    if spec.nspins == 1:
+        nelec = np.array([spec.electrons], dtype=int)
+        neig = [spec.eig_up]
+    else:
+        nelec = np.array([spec.nup, spec.ndown], dtype=int)
+        neig = [spec.eig_up, spec.eig_down]
+
+    if spin_index is None:
+        spin_index = list(range(spec.nspins))
+
+    if np.max(spin_index) >= spec.nspins:
+        raise ValueError(
+            f'Spectral data only has {spec.nspins} spins '
+            + f'but specified a max spin index of {np.max(spin_index)}'
+        )
+
+    # Get the max occupied band index for each spin channel
+    max_occ = np.array(nelec / spec.occ, dtype=int)
+
+    # Plot bands by occupancies for desired spin channel
+    for ns in spin_index:
+        if do_bands in ('occ', 'both'):
+            for nb in range(0, max_occ[ns]):
+                ax.plot(spec.kpoints,
+                        spec.BandStructure[nb, :, ns],
+                        color=colors[0],
+                        linestyle=linestyle, linewidth=linewidth
+                        )
+        if do_bands in ('unocc', 'both'):
+            for nb in range(max_occ[ns], neig[ns]):
+                ax.plot(spec.kpoints,
+                        spec.BandStructure[nb, :, ns],
+                        color=colors[1],
+                        linestyle=linestyle, linewidth=linewidth
+                        )
+
+
 def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
                 band_id_ref: 'int | str' = 'VBM', spin_index: int = 0,
                 force_align=False, silent=False):
