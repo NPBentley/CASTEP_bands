@@ -29,12 +29,6 @@ def _get_bravais_lattice_spg(cell):
       saving on some duplication of code.
 
     """
-    # Get all the Bravais lattices
-    bv_dict = latt.bravais_lattices
-
-    # Get the cell's lattice parameters
-    a, b, c, alpha, beta, gamma = cell.cell.cellpar()
-
     # Get the space group information for this cell
     spg_cell = spg.get_spacegroup(cell)
     spg_no = spg_cell.no
@@ -112,6 +106,12 @@ def _get_bravais_lattice_spg(cell):
 
 
 def _get_bravais_lattice_usr(cell, bv_type):
+    """Get a Bravais lattice matching the lattice parameters of the user's unit cell.
+
+    This effectively is a wrapper for ASE. Since the ASE routine takes only the arguments
+    required to specify the Bravais lattice (the others implied by symmetry), we need to
+    account for each Bravais lattice type ourselves.
+    """
     # Get all the Bravais lattices
     bv_dict = latt.bravais_lattices
 

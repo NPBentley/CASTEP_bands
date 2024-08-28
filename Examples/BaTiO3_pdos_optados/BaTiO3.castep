@@ -1,0 +1,563 @@
+ +-------------------------------------------------+
+ |                                                 |
+ |      CCC   AA    SSS  TTTTT  EEEEE  PPPP        |
+ |     C     A  A  S       T    E      P   P       |
+ |     C     AAAA   SS     T    EEE    PPPP        |
+ |     C     A  A     S    T    E      P           |
+ |      CCC  A  A  SSS     T    EEEEE  P           |
+ |                                                 |
+ +-------------------------------------------------+
+ |                                                 |
+ | Welcome to Academic Release CASTEP version 25.1 |
+ | Ab Initio Total Energy Program                  |
+ |                                                 |
+ | Authors:                                        |
+ | M. Segall, M. Probert, C. Pickard, P. Hasnip,   |
+ | S. Clark, K. Refson, J. R. Yates,               |
+ | A. Bartok-Partay, M. Payne                      |
+ |                                                 |
+ | Contributors:                                   |
+ | P. Lindan, P. Haynes, J. White, V. Milman,      |
+ | N. Govind, M. Gibson, P. Tulip, V. Cocula,      |
+ | B. Montanari, D. Quigley, M. Glover,            |
+ | L. Bernasconi, A. Perlov, M. Plummer,           |
+ | E. McNellis, J. Meyer, J. Gale, D. Jochym       |
+ | J. Aarons, B. Walker, R. Gillen, D. Jones       |
+ | T. Green, I. J. Bush, C. J. Armstrong,          |
+ | E. J. Higgins, E. L. Brown, M. S. McFly,        |
+ | J. Wilkins, B-C. Shih, P. J. P. Byrne,          |
+ | R. J. Maurer, J. C. Womack, J. Dziedzic,        |
+ | L. LeBlanc, T. K. Stenczel, J. Kermode,         |
+ | S. Sturniolo, B. Shi, B. Durham, M. Evans,      |
+ | M. J. Smith, A. Tamerus, Z. Hawkhead,           |
+ | V. Ravindran, T. Hollins, S. A. Joyce,          |
+ | R. T. Strong, A. M. Reilly, S. J. Donaldson,    |
+ | J. C. A. Prentice                               |
+ |                                                 |
+ | Copyright (c) 2000 - 2024                       |
+ |                                                 |
+ |     Distributed under license from Cambridge    |
+ |     Enterprise for academic use only.           |
+ |                                                 |
+ | Please cite                                     |
+ |                                                 |
+ |     "First principles methods using CASTEP"     |
+ |                                                 |
+ |         Zeitschrift fuer Kristallographie       |
+ |           220(5-6) pp. 567-570 (2005)           |
+ |                                                 |
+ | S. J. Clark, M. D. Segall, C. J. Pickard,       |
+ | P. J. Hasnip, M. J. Probert, K. Refson,         |
+ | M. C. Payne                                     |
+ |                                                 |
+ |       in all publications arising from          |
+ |              your use of CASTEP                 |
+ |                                                 |
+ +-------------------------------------------------+
+ |                                                 |
+ |              http://www.castep.org              |
+ |                                                 |
+ +-------------------------------------------------+
+
+
+
+ Compiled for linux_x86_64_gfortran10 on Fri, 09 Aug 2024 17:54:55 +0100
+ from code version 666a1b014+  default  Thu Aug 8 12:16:35 2024 +0100
+ Compiler: GNU Fortran 13.3.1; Optimisation: fast
+ Comms   : Open MPI v4.1.5
+ MATHLIBS: openblas (LAPACK version 3.9.0)
+ FFT Lib : fftw3 version fftw-3.3.10-sse2-avx-avx2-avx2_128
+ Fundamental constants values: CODATA 2018
+
+ Run started: Thu, 22 Aug 2024 15:23:21 +0100
+Reading continuation data from model file BaTiO3.check
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+Initialising basis set for model.
+Reinitialising basis set for current geometry.
+Continuing from previous run with ground state wavefunction.
+Continuing from previous run with ground state density.
+ Calculation parallelised over 10 processes.
+ Data is distributed by G-vector(5-way) and k-point(2-way)
+
+ ************************************ Title ************************************
+ 
+
+ ***************************** General Parameters ******************************
+  
+ output verbosity                               : normal  (1)
+ continuing from                                : BaTiO3.check
+ write checkpoint data to                       : BaTiO3.check
+ type of calculation                            : Electronic Spectroscopy
+ stress calculation                             : off
+ density difference calculation                 : off
+ electron localisation func (ELF) calculation   : off
+ Hirshfeld analysis                             : off
+ polarisation (Berry phase) analysis            : off
+ molecular orbital projected DOS                : off
+ deltaSCF calculation                           : off
+ unlimited duration calculation
+ timing information                             : on
+ memory usage estimate                          : on
+ write extra output files                       : on
+ write final potential to formatted file        : off
+ write final density to formatted file          : off
+ write BibTeX reference list                    : on
+ write OTFG pseudopotential files               : on
+ write electrostatic potential file             : on
+ write bands file                               : on
+ checkpoint writing                             : both castep_bin and check files
+ random number generator seed                   :  152112821
+
+ *********************** Exchange-Correlation Parameters ***********************
+  
+ using functional                               : Perdew Burke Ernzerhof
+ DFT+D: Semi-empirical dispersion correction    : off
+
+ ************************* Pseudopotential Parameters **************************
+  
+ pseudopotential representation                 : reciprocal space
+ <beta|phi> representation                      : reciprocal space
+ spin-orbit coupling                            : off
+
+ **************************** Basis Set Parameters *****************************
+  
+ basis set accuracy                             : FINE
+ finite basis set correction                    : none
+
+ **************************** Electronic Parameters ****************************
+  
+ number of  electrons                           :  40.00    
+ net charge of system                           :  0.000    
+ treating system as non-spin-polarized
+ number of bands                                :         24
+
+ ********************* Electronic Minimization Parameters **********************
+  
+ Method: Treating system as metallic with density mixing treatment of electrons,
+         and number of  SD  steps               :          1
+         and number of  CG  steps               :          4
+  
+ total energy / atom convergence tol.           : 0.1000E-05   eV
+ eigen-energy convergence tolerance             : 0.2500E-06   eV
+ max force / atom convergence tol.              : ignored
+ periodic dipole correction                     : NONE
+
+ ************************** Density Mixing Parameters **************************
+  
+ density-mixing scheme                          : Pulay
+ max. length of mixing history                  :         20
+
+ *********************** Population Analysis Parameters ************************
+  
+ Population analysis with cutoff                :  3.000       A
+ Population analysis output                     : summary and pdos components
+ Partial DOS weights calculated
+
+ ********************* Electronic Spectroscopy Parameters **********************
+  
+ electronic spectroscopy with theory level      : DFT       
+ spectroscopy calculation                       : density of states
+ max. number of iterations                      :         60
+ max. steps per iteration                       :          5
+ number of bands / k-point                      :         49
+ band convergence tolerance                     : 0.1000E-05   eV
+ write orbitals file                            : on
+
+ *******************************************************************************
+  
+
+                           -------------------------------
+                                      Unit Cell
+                           -------------------------------
+        Real Lattice(A)                      Reciprocal Lattice(1/A)
+     4.0000000     0.0000000     0.0000000        1.570796327  -0.000000000  -0.000000000
+     0.0000000     4.0000000     0.0000000        0.000000000   1.570796327  -0.000000000
+     0.0000000     0.0000000     4.0000000        0.000000000   0.000000000   1.570796327
+
+                       Lattice parameters(A)       Cell Angles
+                    a =      4.000000          alpha =   90.000000
+                    b =      4.000000          beta  =   90.000000
+                    c =      4.000000          gamma =   90.000000
+
+                       Current cell volume =            64.000000       A**3
+                                   density =             3.643628   AMU/A**3
+                                           =             6.050387     g/cm^3
+
+                           -------------------------------
+                                     Cell Contents
+                           -------------------------------
+                         Total number of ions in cell =    5
+                      Total number of species in cell =    3
+                        Max number of any one species =    3
+
+            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+            x  Element    Atom        Fractional coordinates of atoms  x
+            x            Number           u          v          w      x
+            x----------------------------------------------------------x
+            x  O            1         0.000000   0.500000   0.500000   x 
+            x  O            2         0.500000   0.000000   0.500000   x 
+            x  O            3         0.500000   0.500000   0.000000   x 
+            x  Ti           1         0.500000   0.500000   0.500000   x 
+            x  Ba           1         0.000000   0.000000   0.000000   x 
+            xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+                         No user defined ionic velocities
+
+                           -------------------------------
+                                   Details of Species
+                           -------------------------------
+
+                               Mass of species in AMU
+                                    O   15.9994000
+                                    Ti   47.8670000
+                                    Ba  137.3270000
+
+                          Electric Quadrupole Moment (Barn)
+                                    O   -0.0255800 Isotope 17
+                                    Ti    0.3020000 Isotope 47
+                                    Ba    0.2450000 Isotope137
+
+                          Files used for pseudopotentials:
+                                    O O_C19MK2_PBE_OTF.usp
+                                    Ti Ti_C19MK2_PBE_OTF.usp
+                                    Ba Ba_C19MK2_PBE_OTF.usp
+
+                           -------------------------------
+                              k-Points For BZ Sampling
+                           -------------------------------
+                       MP grid size for SCF calculation is  4  4  4
+                            with an offset of   0.000  0.000  0.000
+                       Number of kpoints used =             4
+
+                           -------------------------------
+                               Symmetry and Constraints
+                           -------------------------------
+
+                      Maximum deviation from symmetry = 0.470004E-15     ANG
+
+                      Number of symmetry operations   =          48
+                      Number of ionic constraints     =           3
+                      Point group of crystal =    32: Oh, m-3m, 4/m -3 2/m
+                      Space group of crystal =   221: Pm-3m, -P 4 2 3
+
+             Set iprint > 1 for details on symmetry rotations/translations
+
+                         Centre of mass is constrained
+             Set iprint > 1 for details of linear ionic constraints
+
+                         Number of cell constraints= 5
+                         Cell constraints are:  1 1 1 0 0 0
+
+                         External pressure/stress (GPa)
+                          0.00000   0.00000   0.00000
+                                    0.00000   0.00000
+                                              0.00000
+ 
++---------------- MEMORY AND SCRATCH DISK ESTIMATES PER PROCESS --------------+
+|                                                     Memory          Disk    |
+|                                               ----------------------------- |
+| Approx. total storage required per process          250.5 MB         0.0 MB |
+|                                                                             |
+| Requirements will fluctuate during execution and may exceed these estimates |
++-----------------------------------------------------------------------------+
+ 
+  =====================================================================
+  +                                                                   +
+  +                 Calculation of Spectral Properties                +
+  +                                                                   +
+  + Calculation re-parallelised over 9 processes.                     +
+  + There are 33 k-points distributed across 3 k-point groups.        +
+  + Data distributed by G-vector(3-way), k-point(3-way), band(1-way)  +
+  + Data distributed by G-vector(3-way), k-point(3-way)               +
+  +                                                                   +
+  =====================================================================
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        1 of       11 Time:      0.00 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        2 of       11 Time:      2.62 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        3 of       11 Time:      5.47 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        4 of       11 Time:      8.30 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        5 of       11 Time:     11.02 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        6 of       11 Time:     13.77 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        7 of       11 Time:     16.76 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        8 of       11 Time:     19.84 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:        9 of       11 Time:     23.29 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:       10 of       11 Time:     26.84 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Starting k-point:       11 of       11 Time:     30.31 sec  |<-- SPEC
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+  Check-pointing spectral run                                 |<-- SPEC
+  Total time to compute matrix elements             33.85 sec |<-- SPEC
+  
+
+Writing model to BaTiO3.orbitals
+  + Calculation re-parallelised over 10 processes.                    +
+  + Data distributed by G-vector(5-way), k-point(2-way)               +
+
+ ******************** Symmetrised Forces ********************
+ *                                                          *
+ *               Cartesian components (eV/A)                *
+ * -------------------------------------------------------- *
+ *                         x            y            z      *
+ *                                                          *
+ * O               1      0.00000      0.00000      0.00000 *
+ * O               2      0.00000      0.00000      0.00000 *
+ * O               3      0.00000      0.00000      0.00000 *
+ * Ti              1      0.00000      0.00000      0.00000 *
+ * Ba              1      0.00000      0.00000      0.00000 *
+ *                                                          *
+ ************************************************************
+
+ Pseudo atomic calculation performed for O 2s2 2p4
+
+ Converged in 24 iterations to a total energy of -432.0454 eV
+
+ Pseudo atomic calculation performed for Ti 3s2 3p6 3d2 4s2
+
+ Converged in 34 iterations to a total energy of -1586.9945 eV
+
+ Pseudo atomic calculation performed for Ba 5s2 5p6 6s2
+
+ Converged in 25 iterations to a total energy of -1026.3576 eV
+Charge spilling parameter for spin component 1 = 0.16%
+
+            Orbital Populations       
+     Ion    Atom   Orbital             Charge
+  -------------------------------------------
+      O     1      S                    1.847
+      O     1      Px                   1.542
+      O     1      Py                   1.686
+      O     1      Pz                   1.627
+      O     2      S                    1.847
+      O     2      Px                   1.686
+      O     2      Py                   1.542
+      O     2      Pz                   1.627
+      O     3      S                    1.835
+      O     3      Px                   1.701
+      O     3      Py                   1.701
+      O     3      Pz                   1.540
+     Ti     1      S                    1.993
+     Ti     1      Px                   1.992
+     Ti     1      Py                   1.992
+     Ti     1      Pz                   1.990
+     Ti     1      S                    0.316
+     Ti     1      Dzz                  0.537
+     Ti     1      Dzy                  0.394
+     Ti     1      Dzx                  0.394
+     Ti     1      Dxx-yy               0.542
+     Ti     1      Dxy                  0.320
+     Ti     1      Px                   0.210
+     Ti     1      Py                   0.210
+     Ti     1      Pz                   0.268
+     Ba     1      S                    2.023
+     Ba     1      Px                   1.992
+     Ba     1      Py                   1.992
+     Ba     1      Pz                   1.992
+     Ba     1      S                   -0.052
+     Ba     1      Dzz                  0.093
+     Ba     1      Dzy                  0.181
+     Ba     1      Dzx                  0.181
+     Ba     1      Dxx-yy               0.151
+     Ba     1      Dxy                  0.108
+  -------------------------------------------
+                           Total:      40.000
+  -------------------------------------------
+
+     Atomic Populations (Mulliken)
+     -----------------------------
+Species          Ion     s       p       d       f      Total   Charge (e)
+==========================================================================
+  O               1     1.843   4.884   0.000   0.000   6.727    -0.727
+  O               2     1.843   4.884   0.000   0.000   6.727    -0.727
+  O               3     1.843   4.884   0.000   0.000   6.727    -0.727
+  Ti              1     2.309   6.661   2.187   0.000  11.157     0.843
+  Ba              1     1.971   5.975   0.714   0.000   8.660     1.340
+==========================================================================
+
+                 Bond                   Population      Length (A)
+======================================================================
+               O 3 -- Ti 1                   0.94        2.00000
+               O 2 -- Ti 1                   0.94        2.00000
+               O 1 -- Ti 1                   0.94        2.00000
+               O 3 -- Ba 1                  -0.01        2.82843
+               O 2 -- Ba 1                  -0.01        2.82843
+               O 2 -- O 3                   -0.11        2.82843
+               O 1 -- Ba 1                  -0.01        2.82843
+               O 1 -- O 3                   -0.11        2.82843
+               O 1 -- O 2                   -0.11        2.82843
+======================================================================
+
+
+Writing analysis data to BaTiO3.castep_bin
+
+Writing model to BaTiO3.check
+ 
+ A BibTeX formatted list of references used in this run has been written to 
+ BaTiO3.bib
+ 
+Initialisation time =      2.88 s
+Calculation time    =     41.00 s
+Finalisation time   =      0.07 s
+Total time          =     43.95 s
+Peak Memory Use     = 1420104 kB
+ 
+Overall parallel efficiency rating: Good (72%)
+ 
+Data was distributed by:-
+G-vector (5-way); efficiency rating: Good (78%)
+k-point (2-way); efficiency rating: Very good (89%)
+ 
+Parallel notes:
+1) Calculation only took 43.9 s, so efficiency estimates may be inaccurate.

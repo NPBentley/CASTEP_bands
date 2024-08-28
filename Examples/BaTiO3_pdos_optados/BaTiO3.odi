@@ -1,0 +1,42 @@
+###########################################################
+#                   OptaDOS input file
+###########################################################
+
+TASK              : pdos
+
+# Set decomposition, i.e. projectros for PDOS.
+# Can also try species and sites.
+PDOS              : species_ang
+
+# CASTEP and OptaDOS fermi may not always agree on Fermi energy
+# so for ease of plotting use CASTEP Fermi energy instead.
+EFERMI            : file
+
+# Energy bin spacing for density of states
+DOS_SPACING       : 0.02
+
+# Set OptaDOS energy scale such that Fermi energy is 0 eV.
+SET_EFERMI_ZERO   : false
+
+###########################################################
+#            A D V A N C E D   K E Y W O R D S
+###########################################################
+# The keywords below are all at their default value.
+# They are presented here to indicate the internal
+# workings of OptaDOS and allow you to tweak the
+# output.
+
+# The broadening used, (also try linear, or fixed)
+BROADENING        : adaptive # Default
+
+# The broadening parameter, A, when using adaptive smearing,
+# set by eye to be similar to the linear smearing method
+ADAPTIVE_SMEARING : 0.4      # Default
+
+# The Gaussian broadening parameter for fixed smearing,
+# in eV.
+FIXED_SMEARING    : 0.3      # Default
+
+# Normalise the DOS with the volume of the simulation
+# cell
+DOS_PER_VOLUME  : false      # Default
