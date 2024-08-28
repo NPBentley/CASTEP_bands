@@ -50,8 +50,6 @@ class DOSdata:
         taken from the OptaDOS header.
     pdos_labels : list
         list of labels to use for PDOS plot
-    pdos : np.ndarray
-        partial density of states (states per energy unit [eV])
     eng_unit : str
         unit of energy for data
     efermi : float
@@ -69,6 +67,8 @@ class DOSdata:
         Sets the label for the PDOS plot
     shift_dos_eng
         Shifts the energy scale for density of states and partial density of states data.
+    autoscale_data
+        Obtain axes limits to scale axes to fit data lyinging within a given energy range.
     """
 
     def __init__(self,
@@ -410,6 +410,46 @@ class DOSdata:
         else:
             self.efermi += eng_shift
 
+    def autoscale_data(self, Elim: list, do_proj: list = None):
+        """Obtains the limits of the PDOS data within a given energy range.
+
+        Parameters
+        ----------
+        Elim : list
+            energy range
+        do_proj : list
+            list of projectors if partial density of states
+
+        Returns
+        -------
+        list
+            range of PDOS data within Elim
+
+        Raises
+        ------
+        ValueError
+            Did not specify energy limits correctly
+
+        """
+        if len(Elim) != 2:
+            raise ValueError('Must specify lower and upper bound of energy range')
+
+        # Obtain the dos_data values within a given energy range
+        eng_indx = np.where(np.logical_and(Elim[0] <= self.engs, self.engs <= Elim[1]))[0]
+
+        # Decide on what we are plotting and extract data in the given energy range.
+        if self.have_pdos is True:
+            if do_proj is None:
+                do_proj = np.arange(self.nproj, dtype=int)
+
+            dos_data = self.pdos[do_proj]  # Care about a projectory only if we plot it.
+            dos_data = dos_data[:, eng_indx]
+        else:
+            dos_data = self.dos[:, eng_indx]
+
+        # Now get limits of DOS data
+        return [np.min(dos_data), np.max(dos_data)]
+
     def plot_data(self, ax: mpl.axes._axes.Axes,
                   Elim: list = None,
                   dos_lim: list = None,
@@ -574,13 +614,14 @@ class DOSdata:
 
         # Set density of states limits
         if dos_lim is None:
-            # TODO Implement autoscale for PDOS
-            pass
+            dos_lim = self.autoscale_data(Elim, do_proj)
+            # Add some head room
+            dos_lim[1] += 5
+
+        if orient == 'vertical':
+            ax.set_xlim(dos_lim)
         else:
-            if orient == 'vertical':
-                ax.set_xlim(dos_lim)
-            else:
-                ax.set_ylim(dos_lim)
+            ax.set_ylim(dos_lim)
 
         if orient == 'vertical':
             ax.set_ylim(Elim)
