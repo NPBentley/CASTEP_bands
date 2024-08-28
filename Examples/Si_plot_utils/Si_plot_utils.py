@@ -60,4 +60,5 @@ plot_bands(spec, ax, band_ids=[6, 9], color=['limegreen', 'cyan'], labels=['my b
 ax.legend(bbox_to_anchor=(1.05, 0.9))
 plt.tight_layout()
 
+plt.savefig('Si_plot_utils.png')
 plt.show()
