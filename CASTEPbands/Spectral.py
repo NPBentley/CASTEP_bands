@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ase.data import atomic_numbers
 
+from CASTEPbands import spgutils
+
 
 class Spectral:
     """
@@ -52,10 +54,14 @@ class Spectral:
          Band structure is from non-collinear calculation.
          This basically instructs overrides double occupancy despites nspins=1 as from
         .bands file alone, non-collinear magnetism alone cannot be inferred (default: False)
-    high_sym_spacegroup
+    high_sym_spacegroup : boolean
          Get the high-symmetry points from the space group rather than just the
-          geometry/lattice parameters of the computational cell (Default : True)
-    use_cell:
+         geometry/lattice parameters of the computational cell (Default : True)
+    override_bv : boolean
+         Set a Bravais lattice manually and use this Bravais lattice for the high-symmetry point labels.
+         This may be useful when the cell contains e.g. a defect and one wishes to
+         nonetheless keep the high-symmetry points of the original crystal for the plot.
+    use_cell: boolean
          Cell file containing structure used for band structure
          (Default : <seed>.cell)
     vec_spin : boolean
@@ -88,6 +94,7 @@ class Spectral:
                  flip_spins=False,
                  have_ncm=False,
                  high_sym_spacegroup=True,
+                 override_bv=None,
                  use_cell=None,
                  vec_spin=False):
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
@@ -334,105 +341,7 @@ class Spectral:
         high_sym = np.array(high_sym) + 1
         self.high_sym = high_sym
 
-        # Set up the special points
-        def _get_high_sym_points_spg(cell):
-            """Determine the high-symmetry points uisng the spacegroup.
-
-            ASE will use just use the crystal system based on solely the lattice parameters
-            whereas CASTEP will utilise the space group, which will be particularly important
-            in e.g. magnetic materials where the computational cell may have a different crystal system
-            to the (conventional) crystallographic one.
-
-            For low-symmetry Bravais lattices where the special/high-symmetry points are
-            lattice parameter dependent, we will use the lattice parameters of the computational cell.
-
-            Author : V Ravindran 08/05/2024
-            """
-            import ase.spacegroup as spg
-            import ase.lattice as latt
-
-            # Get all the Bravais lattices
-            bv_dict = latt.bravais_lattices
-
-            # Get the cell's lattice parameters
-            a, b, c, alpha, beta, gamma = cell.cell.cellpar()
-
-            # Get the space group information for this cell
-            spg_cell = spg.get_spacegroup(cell)
-            spg_no = spg_cell.no
-
-            # Get the first letter of the spacegroup in international notation.
-            # This gives the information about the Bravais lattice
-            bv_symb = spg_cell.symbol.split()[0].upper()
-
-            # Now use the space group to determine the crystal system.
-            # We can determine the actual Bravais lattice using the first
-            # letter of the international notation symbol.
-            #
-            # Like in CASTEP, particularly for low symmetry Bravais lattices
-            # where the high symmetry points depend on lattice parameters,
-            # we will use the computational cell's lattice parameters.
-            # Variations for each bravais lattice should be handled by ASE (in principle...)
-            if 1 <= spg_no <= 2:
-                # Triclinic lattice
-                bv = bv_dict['TRI'](a=a, b=b, c=c,
-                                    alpha=alpha, beta=beta, gamma=gamma)
-            elif 3 <= spg_no <= 15:
-                # Monoclinic
-                if bv_symb == 'P':  # Primitive monoclinic
-                    bv = bv_dict['MCL'](a=a, b=b, c=c,
-                                        alpha=alpha)
-                elif bv_symb == 'C':  # Base-centred (C-centred) monoclinic
-                    bv = bv_dict['MCLC'](a=a, b=b, c=c,
-                                         alpha=alpha)
-                else:
-                    raise IndexError(f'Unknown monoclinic lattice with space group: {spg_cell.symbol}')
-            elif 16 <= spg_no <= 74:
-                # Orthorhombic
-                if bv_symb == 'P':  # Primitive Orthorhombic
-                    bv = bv_dict['ORC'](a=a, b=b, c=c)
-                elif bv_symb == 'I':  # Body-Centred Orthorhombic
-                    bv = bv_dict['ORCI'](a=a, b=b, c=c)
-                elif bv_symb == 'F':  # Face-Centred Orthorhombic
-                    bv = bv_dict['ORCF'](a=a, b=b, c=c)
-                elif bv_symb == 'A' or bv_symb == 'C':  # A/C-centred
-                    bv = bv_dict['ORCC'](a=a, b=b, c=c)
-                else:
-                    raise IndexError(f'Unknown orthorhombic lattice with space group: {spg_cell.symbol}')
-            elif 75 <= spg_no <= 142:
-                # Tetragonal
-                if bv_symb == 'P':  # Primitive Tetragonal
-                    bv = bv_dict['TET'](a=a, c=c)
-                elif bv_symb == 'I':  # Body-Centred Tetragonal
-                    bv = bv_dict['BCT'](a=a, c=c)
-                else:
-                    raise IndexError(f'Unknown tetragonal lattice with space group: {spg_cell.symbol}')
-            elif 143 <= spg_no <= 167:
-                # Trigonal
-                if bv_symb == 'R':  # R-trigonal/Rhombohedral
-                    bv = bv_dict['RHL'](a=a, alpha=alpha)
-                elif bv_symb == 'P':  # Hexagonal
-                    bv = bv_dict['HEX'](a=a, c=c)
-                else:
-                    raise IndexError(f'Unknown trigonal lattice with space group: {spg_cell.symbol}')
-            elif 168 <= spg_no <= 194:
-                # Hexagonal
-                bv = bv_dict['HEX'](a=a, c=c)
-            elif 195 <= spg_no <= 230:
-                # Cubic
-                if bv_symb == 'P':  # Primitive/Simple Cubic
-                    bv = bv_dict['CUB'](a=a)
-                elif bv_symb == 'I':  # Body-Centred Cubic
-                    bv = bv_dict['BCC'](a=a)
-                elif bv_symb == 'F':  # Face-Centred Cubic
-                    bv = bv_dict['FCC'](a=a)
-                else:
-                    raise IndexError(f'Unknown cubic lattice with space group: {spg_cell.symbol}')
-            else:
-                raise IndexError(f'Unknown Spacegroup {spg_no}: {spg_cell.symbol}')
-
-            return bv.get_special_points()
-
+        # Obtain the unit cell for this calculation
         # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
         # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
         # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
@@ -449,13 +358,20 @@ class Spectral:
                            calculator_args={"keyword_tolerance": 3}
                            )
 
-        # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
-        if high_sym_spacegroup is True:
-            special_points = _get_high_sym_points_spg(cell)
+        # Set up the special points
+        if override_bv is not None:
+            # Allow user to manually specify the Bravais lattice.   V Ravindran OVERRIDE_BV 28/08/2024
+            # Useful for defect calculations if one wants to        V Ravindran OVERRIDE_BV 28/08/2024
+            # e.g. use high-symmetry labels of the main crystal.    V Ravindran OVERRIDE_BV 28/08/2024
+            bv_latt = spgutils._get_bravais_lattice_usr(cell, override_bv)
+        elif high_sym_spacegroup is True:
+            # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
+            bv_latt = spgutils._get_bravais_lattice_spg(cell)
         else:
-            # Get special from the crystal system of the computational cell.
+            # Get Bravais lattice from the crystal system of the computational cell.
             bv_latt = cell.cell.get_bravais_lattice()
-            special_points = bv_latt.get_special_points()
+
+        special_points = bv_latt.get_special_points()
 
         # Get the atoms in cell.
         atoms = np.unique(cell.get_chemical_symbols())[::-1]
@@ -1722,13 +1638,21 @@ class Spectral:
                         elif spin_polarised:
                             line_color = spin_colors[ns]
 
+                        # Added back in missing labels  V Ravindran 28/08/2024
+                        current_bnd_label = None
+                        if band_labels is not None:
+                            current_bnd_label = band_labels[nb, ns]
+
                         if line_color == '':
                             # No colour specified so let pick from rcParams
                             line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                               linestyle=linestyle, linewidth=linewidth)
+                                               linestyle=linestyle, linewidth=linewidth,
+                                               label=current_bnd_label
+                                               )
                         else:
                             line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                               linestyle=linestyle, linewidth=linewidth, color=line_color)
+                                               linestyle=linestyle, linewidth=linewidth, color=line_color,
+                                               label=current_bnd_label)
 
                         # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
                             # V Ravindran: The check further up should have caught the fact that band_ids
