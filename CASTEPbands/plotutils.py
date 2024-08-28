@@ -62,14 +62,20 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
         nbands = spec.BandStructure.shape[0]
         band_ids = np.arange(nbands, dtype=int)
 
-    if isinstance(color, list):
-        if band_ids.shape != len(color):
-            raise IndexError('Number of colours does not match number of bands')
+    # Corrected logic for colours to allow single string to be     COLOUR_LOGIC 28/08/2024
+    # passed for all bands or a colour for each band in band_ids.  COLOUR_LOGIC 28/08/2024
+    if isinstance(color, str):
+        # Same colour for all bands
+        color = [color for i in range(len(band_ids))]
 
     if labels is not None:
         labels = list(labels)
-        if band_ids.shape != len(labels):
-            raise IndexError('Number of labels does not match number of bands')
+        if len(labels) != len(band_ids):
+            raise IndexError(f'Number of labels ({len(labels)}) does not match number of bands {len(band_ids)}')
+
+    if isinstance(color, list):
+        if len(color) != len(band_ids):
+            raise IndexError(f'Number of colours ({len(color)}) does not match number of bands {len(band_ids)}')
 
     def _add_bands_for_spin(ns: int, add_labels=True):
         """Add bands for a given spin channel to the plot."""
@@ -88,7 +94,8 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
         for i, nb in enumerate(band_ids):
             if do_label_first is True and i == 0:
                 # Label the first band in the set using a separate label if requested
-                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                ax.plot(kpts, banddata[nb, :, ns],
+                        color=color[i],  # Added index for color COLOUR_LOGIC 28/08/2024
                         linestyle=linestyle, linewidth=linewidth,
                         # Marker style added 09/05/2024
                         marker=marker, markersize=markersize,
@@ -99,14 +106,16 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
 
             elif do_labels is True:
                 # Label bands
-                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                ax.plot(kpts, banddata[nb, :, ns],
+                        color=color[i],  # Added index for color COLOUR_LOGIC 28/08/2024
                         linestyle=linestyle, linewidth=linewidth,
                         # Marker style added 09/05/2024
                         marker=marker, markersize=markersize,
                         label=labels[i])
             else:
                 # Just plot the bands
-                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                ax.plot(kpts, banddata[nb, :, ns],
+                        color=color[i],  # Added index for color COLOUR_LOGIC 28/08/2024
                         linestyle=linestyle, linewidth=linewidth,
                         # Marker style added 09/05/2024
                         marker=marker, markersize=markersize)
@@ -195,6 +204,79 @@ def add_vb_cb(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
             ax.plot(spec.kpoints, cb_eigs, color=colors[1],
                     linestyle=linestyle, linewidth=linewidth,
                     label=labels[1])
+
+
+def color_by_occ(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
+                 do_bands: str = 'both',
+                 colors: list = ['b', 'r'],
+                 linewidth: float = 1.2, linestyle: str = '-',
+                 spin_index: list = None):
+    """Colour bands by occupancies.
+
+    This assumes no weird crossings or anything funny, we simply count the number of electrons
+    occupying each state.
+
+    Parameters
+    ----------
+    spec : Spectral.Spectral
+        band structure to plot
+    ax : mpl.axes._axes.Axes
+        axes to add band structure to
+    do_bands : str
+        specify whether to plot occupied or unoccupied bands or both
+    colors : list
+        colours to use for occupied and unoccupied bands.
+    linewidth : float
+        width of lines for bands
+    linestyle : str
+        style of lines for bands
+    spin_index : list
+        which spin channels to plot if spin polarised.
+
+    Raises
+    ------
+    ValueError
+        Invaid parameter option specified.
+
+    """
+
+    if do_bands not in ('occ', 'unocc', 'both'):
+        raise ValueError(f'{do_bands=} must be one of: "occ", "unocc", "both"')
+    if spec.nspins == 1:
+        nelec = np.array([spec.electrons], dtype=int)
+        neig = [spec.eig_up]
+    else:
+        nelec = np.array([spec.nup, spec.ndown], dtype=int)
+        neig = [spec.eig_up, spec.eig_down]
+
+    if spin_index is None:
+        spin_index = list(range(spec.nspins))
+
+    if np.max(spin_index) >= spec.nspins:
+        raise ValueError(
+            f'Spectral data only has {spec.nspins} spins '
+            + f'but specified a max spin index of {np.max(spin_index)}'
+        )
+
+    # Get the max occupied band index for each spin channel
+    max_occ = np.array(nelec / spec.occ, dtype=int)
+
+    # Plot bands by occupancies for desired spin channel
+    for ns in spin_index:
+        if do_bands in ('occ', 'both'):
+            for nb in range(0, max_occ[ns]):
+                ax.plot(spec.kpoints,
+                        spec.BandStructure[nb, :, ns],
+                        color=colors[0],
+                        linestyle=linestyle, linewidth=linewidth
+                        )
+        if do_bands in ('unocc', 'both'):
+            for nb in range(max_occ[ns], neig[ns]):
+                ax.plot(spec.kpoints,
+                        spec.BandStructure[nb, :, ns],
+                        color=colors[1],
+                        linestyle=linestyle, linewidth=linewidth
+                        )
 
 
 def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
