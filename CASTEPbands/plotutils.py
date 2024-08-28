@@ -62,14 +62,20 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
         nbands = spec.BandStructure.shape[0]
         band_ids = np.arange(nbands, dtype=int)
 
-    if isinstance(color, list):
-        if band_ids.shape != len(color):
-            raise IndexError('Number of colours does not match number of bands')
+    # Corrected logic for colours to allow single string to be     COLOUR_LOGIC 28/08/2024
+    # passed for all bands or a colour for each band in band_ids.  COLOUR_LOGIC 28/08/2024
+    if isinstance(color, str):
+        # Same colour for all bands
+        color = [color for i in range(len(band_ids))]
 
     if labels is not None:
         labels = list(labels)
-        if band_ids.shape != len(labels):
-            raise IndexError('Number of labels does not match number of bands')
+        if len(labels) != len(band_ids):
+            raise IndexError(f'Number of labels ({len(labels)}) does not match number of bands {len(band_ids)}')
+
+    if isinstance(color, list):
+        if len(color) != len(band_ids):
+            raise IndexError(f'Number of colours ({len(color)}) does not match number of bands {len(band_ids)}')
 
     def _add_bands_for_spin(ns: int, add_labels=True):
         """Add bands for a given spin channel to the plot."""
@@ -88,7 +94,8 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
         for i, nb in enumerate(band_ids):
             if do_label_first is True and i == 0:
                 # Label the first band in the set using a separate label if requested
-                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                ax.plot(kpts, banddata[nb, :, ns],
+                        color=color[i],  # Added index for color COLOUR_LOGIC 28/08/2024
                         linestyle=linestyle, linewidth=linewidth,
                         # Marker style added 09/05/2024
                         marker=marker, markersize=markersize,
@@ -99,14 +106,16 @@ def plot_bands(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes, band_ids: np.nd
 
             elif do_labels is True:
                 # Label bands
-                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                ax.plot(kpts, banddata[nb, :, ns],
+                        color=color[i],  # Added index for color COLOUR_LOGIC 28/08/2024
                         linestyle=linestyle, linewidth=linewidth,
                         # Marker style added 09/05/2024
                         marker=marker, markersize=markersize,
                         label=labels[i])
             else:
                 # Just plot the bands
-                ax.plot(kpts, banddata[nb, :, ns], color=color,
+                ax.plot(kpts, banddata[nb, :, ns],
+                        color=color[i],  # Added index for color COLOUR_LOGIC 28/08/2024
                         linestyle=linestyle, linewidth=linewidth,
                         # Marker style added 09/05/2024
                         marker=marker, markersize=markersize)
