@@ -21,7 +21,12 @@ def _get_bravais_lattice_spg(cell):
     lattice parameter dependent, we will use the lattice parameters of the computational cell.
 
     Author : V Ravindran 08/05/2024
-    Moved from Spectral to here and updated to return the Bravais lattice itself instead 28/08/2024
+
+    Updated: 28/08/2024
+    * Moved from Spectral to here
+    * Now returns the Bravais lattice itself rather than the high symmetry points
+    * Wraps to _get_bravais_lattice_usr to actually get the Bravais lattice
+      saving on some duplication of code.
 
     """
     # Get all the Bravais lattices
@@ -48,62 +53,61 @@ def _get_bravais_lattice_spg(cell):
     # Variations for each bravais lattice should be handled by ASE (in principle...)
     if 1 <= spg_no <= 2:
         # Triclinic lattice
-        bv = bv_dict['TRI'](a=a, b=b, c=c,
-                            alpha=alpha, beta=beta, gamma=gamma)
+        bv_type = 'TRI'
     elif 3 <= spg_no <= 15:
         # Monoclinic
         if bv_symb == 'P':  # Primitive monoclinic
-            bv = bv_dict['MCL'](a=a, b=b, c=c,
-                                alpha=alpha)
+            bv_type = 'MCL'
         elif bv_symb == 'C':  # Base-centred (C-centred) monoclinic
-            bv = bv_dict['MCLC'](a=a, b=b, c=c,
-                                 alpha=alpha)
+            bv_type = 'MCLC'
         else:
             raise IndexError(f'Unknown monoclinic lattice with space group: {spg_cell.symbol}')
     elif 16 <= spg_no <= 74:
         # Orthorhombic
         if bv_symb == 'P':  # Primitive Orthorhombic
-            bv = bv_dict['ORC'](a=a, b=b, c=c)
+            bv_type = 'ORC'
         elif bv_symb == 'I':  # Body-Centred Orthorhombic
-            bv = bv_dict['ORCI'](a=a, b=b, c=c)
+            bv_type = 'ORCI'
         elif bv_symb == 'F':  # Face-Centred Orthorhombic
-            bv = bv_dict['ORCF'](a=a, b=b, c=c)
-        elif bv_symb == 'A' or bv_symb == 'C':  # A/C-centred
-            bv = bv_dict['ORCC'](a=a, b=b, c=c)
+            bv_type = 'ORCF'
+        elif bv_symb == 'A' or bv_symb == 'C':  # A/C-centred Orthorhombic
+            bv_type = 'ORCC'
         else:
             raise IndexError(f'Unknown orthorhombic lattice with space group: {spg_cell.symbol}')
     elif 75 <= spg_no <= 142:
         # Tetragonal
         if bv_symb == 'P':  # Primitive Tetragonal
-            bv = bv_dict['TET'](a=a, c=c)
+            bv_type = 'TET'
         elif bv_symb == 'I':  # Body-Centred Tetragonal
-            bv = bv_dict['BCT'](a=a, c=c)
+            bv_type = 'BCT'
         else:
             raise IndexError(f'Unknown tetragonal lattice with space group: {spg_cell.symbol}')
     elif 143 <= spg_no <= 167:
         # Trigonal
         if bv_symb == 'R':  # R-trigonal/Rhombohedral
-            bv = bv_dict['RHL'](a=a, alpha=alpha)
+            bv_type = 'RHL'
         elif bv_symb == 'P':  # Hexagonal
-            bv = bv_dict['HEX'](a=a, c=c)
+            bv_type = 'HEX'
         else:
             raise IndexError(f'Unknown trigonal lattice with space group: {spg_cell.symbol}')
     elif 168 <= spg_no <= 194:
         # Hexagonal
-        bv = bv_dict['HEX'](a=a, c=c)
+        bv_type = 'HEX'
     elif 195 <= spg_no <= 230:
         # Cubic
         if bv_symb == 'P':  # Primitive/Simple Cubic
-            bv = bv_dict['CUB'](a=a)
+            bv_type = 'CUB'
         elif bv_symb == 'I':  # Body-Centred Cubic
-            bv = bv_dict['BCC'](a=a)
+            bv_type = 'BCC'
         elif bv_symb == 'F':  # Face-Centred Cubic
-            bv = bv_dict['FCC'](a=a)
+            bv_type = 'FCC'
         else:
             raise IndexError(f'Unknown cubic lattice with space group: {spg_cell.symbol}')
     else:
         raise IndexError(f'Unknown Spacegroup {spg_no}: {spg_cell.symbol}')
 
+    # Now get the Bravais lattice
+    bv = _get_bravais_lattice_usr(cell, bv_type)
     return bv
 
 
@@ -151,7 +155,7 @@ def _get_bravais_lattice_usr(cell, bv_type):
     elif bv_type == 'FCC':  # Face-Centred Cubic
         bv = bv_dict[bv_type](a=a)
     else:
-        # Raise error unless someone's reinvented crystallography and how 3D space works...
+        # Unless someone's reinvented crystallography and how 3D space works...
         raise IndexError(f'Unknown Bravais lattice: {bv_type}')
 
     return bv
