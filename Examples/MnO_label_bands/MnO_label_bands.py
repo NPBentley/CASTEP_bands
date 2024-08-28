@@ -20,15 +20,12 @@ fontsize = 18
 fermi_linewidth = 1.5
 
 # Initialise band data
-MnO_bands = Spectral.Spectral('MnO', zero_fermi=True)
-
-# ASE HACK: ASE will get the high-symmetry points via the symmetry of the Bravais lattice.
-# However, this may not always be the accurate, particuarly for unit cells.
-# For MnO, the antiferromagnetic primitive cell is rhombohedral
-# (consisting of two crystallographic primitive cells).
-# Therefore, ASE will 'wrongly' assume this is rhombohedral and not do the labels correctly.
-# In this instance, the high symmetry labels must be assigned manually.
-MnO_bands.high_sym_labels = ['K', '$\\Gamma$', 'X', 'W']
+MnO_bands = Spectral.Spectral('MnO', zero_fermi=True,
+                              # Ensure that we use high-symmetry labels
+                              # commensurate with crystallographic space group
+                              # rather than just cell parameters (as done in CASTEP)
+                              high_sym_spacegroup=True  # Default
+                              )
 
 # Get the band index of the valence and conduction band for each spin channel.
 nelec = np.array([MnO_bands.nup, MnO_bands.ndown], dtype=int)

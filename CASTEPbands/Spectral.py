@@ -1638,13 +1638,21 @@ class Spectral:
                         elif spin_polarised:
                             line_color = spin_colors[ns]
 
+                        # Added back in missing labels  V Ravindran 28/08/2024
+                        current_bnd_label = None
+                        if band_labels is not None:
+                            current_bnd_label = band_labels[nb, ns]
+
                         if line_color == '':
                             # No colour specified so let pick from rcParams
                             line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                               linestyle=linestyle, linewidth=linewidth)
+                                               linestyle=linestyle, linewidth=linewidth,
+                                               label=current_bnd_label
+                                               )
                         else:
                             line, *_ = ax.plot(self.kpoints, self.BandStructure[nb, :, ns],
-                                               linestyle=linestyle, linewidth=linewidth, color=line_color)
+                                               linestyle=linestyle, linewidth=linewidth, color=line_color,
+                                               label=current_bnd_label)
 
                         # if band_labels[nb,ns] is not None:  # band_labels V Ravindran 12/04/2024
                             # V Ravindran: The check further up should have caught the fact that band_ids
