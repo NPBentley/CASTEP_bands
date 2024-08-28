@@ -122,37 +122,21 @@ def _get_bravais_lattice_usr(cell, bv_type):
     # Since the ASE interface is not overloaded, we will have to
     # set the arguments ourselves here.
     # Lattice Parameters not specified have values implied by type of Bravais lattice.
-
     if bv_type == 'TRI':  # Triclinic lattice
         bv = bv_dict[bv_type](a=a, b=b, c=c,
                               alpha=alpha, beta=beta, gamma=gamma)
-    elif bv_type == 'MCL':  # Primitive Monoclinic
+    elif bv_type in ('MCL', 'MCLC'):  # Primitive/Base-centred (C-centred) Monoclinic
         bv = bv_dict[bv_type](a=a, b=b, c=c,
                               alpha=alpha)
-    elif bv_type == 'MCLC':  # Base-centred (C-centred) monoclinic
-        bv = bv_dict[bv_type](a=a, b=b, c=c,
-                              alpha=alpha)
-    elif bv_type == 'ORC':  # Primitive Orthorhombic
+    elif bv_type in ('ORC', 'ORCI', 'ORCF', 'ORCC'):  # Primitive or Body-/Face-Centred or A/C-Centred Orthorhombic
         bv = bv_dict[bv_type](a=a, b=b, c=c)
-    elif bv_type == 'ORCI':  # Body-Centred Orthorhombic
-        bv = bv_dict[bv_type](a=a, b=b, c=c)
-    elif bv_type == 'ORCF':  # Face-Centred Orthorhombic
-        bv = bv_dict[bv_type](a=a, b=b, c=c)
-    elif bv_type == 'ORCC':  # A/C-centred Orthorhombic
-        bv = bv_dict[bv_type](a=a, b=b, c=c)
-    elif bv_type == 'TET':  # Primitive Tetragonal
-        bv = bv_dict[bv_type](a=a, c=c)
-    elif bv_type == 'BCT':  # Body-Centred Tetragonal
+    elif bv_type in ('TET', 'BCT'):  # Primitive/Body-Centred Tetragonal
         bv = bv_dict[bv_type](a=a, c=c)
     elif bv_type == 'RHL':  # R-trigonal/Rhombohedral
         bv = bv_dict[bv_type](a=a, alpha=alpha)
     elif bv_type == 'HEX':  # Hexagonal
         bv = bv_dict[bv_type](a=a, c=c)
-    elif bv_type == 'CUB':  # Primitive/Simple Cubic
-        bv = bv_dict[bv_type](a=a)
-    elif bv_type == 'BCC':  # Body-Centred Cubic
-        bv = bv_dict[bv_type](a=a)
-    elif bv_type == 'FCC':  # Face-Centred Cubic
+    elif bv_type in ('CUB', 'BCC', 'FCC'):  # Primitive/Simple or Body-Centred or Face-Centred Cubic
         bv = bv_dict[bv_type](a=a)
     else:
         # Unless someone's reinvented crystallography and how 3D space works...
