@@ -1,0 +1,9 @@
+task : spectral
+spectral_task : dos 
+pdos_calculate_weights : True
+
+xc_functional : PBE
+basis_precision : fine
+
+continuation : default 
+

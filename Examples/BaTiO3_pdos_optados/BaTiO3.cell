@@ -1,0 +1,29 @@
+kpoints_mp_grid 4 4 4
+symmetry_generate
+
+%block lattice_abc
+4.000 4.000 4.000
+90.00 90.00 90.00
+%endblock lattice_abc
+
+%block positions_frac
+Ba 0.0 0.0 0.0
+Ti 0.5 0.5 0.5
+O  0.0 0.5 0.5
+O  0.5 0.0 0.5
+O  0.5 0.5 0.0
+%endblock positions_frac
+
+#spectral_kpoint_mp_spacing : 0.1 1/ang for DOS 
+%block spectral_kpoint_path
+M
+G
+X
+R
+%endblock spectral_kpoint_path
+
+%block species_pot
+Ba Ba_C19MK2_PBE_OTF.usp
+Ti Ti_C19MK2_PBE_OTF.usp
+ O  O_C19MK2_PBE_OTF.usp
+%endblock species_pot
