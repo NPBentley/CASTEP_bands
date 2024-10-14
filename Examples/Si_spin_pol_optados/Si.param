@@ -1,0 +1,15 @@
+task : spectral
+spectral_task : dos
+pdos_calculate_weights : true
+
+
+cut_off_energy : 600 eV
+
+xc_functional : PBE
+spin_polarised : true
+write_cst_esp : false
+write_bib : false
+spectral_restart : false
+
+data_distribution : kpoint
+continuation : default
