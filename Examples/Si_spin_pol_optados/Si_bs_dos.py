@@ -21,4 +21,6 @@ plot_bs_with_dos(CASTEP_SEED, DOS_FILE,
 # but you can of course override this behaviour if you wish.
 ax_dos.set_xlim(-2, 2)
 
+plt.tight_layout()
+plt.savefig('Si_bs_with_dos.png')
 plt.show()

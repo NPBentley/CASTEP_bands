@@ -12,14 +12,13 @@ Si  0.25 0.25  0.25
 kpoints_mp_grid 4 4 4
 symmetry_generate
 
+# Use the following for density of states
 spectral_kpoint_mp_grid 10 10 10
+
+# Use the following for band structure
 # %block spectral_kpoint_path
 # G
 # X
 # W
 # K
 # %endblock spectral_kpoint_path
-
-%block species_pot
-Si Si_C19_PBE_OTF.usp
-%endblock species_pot

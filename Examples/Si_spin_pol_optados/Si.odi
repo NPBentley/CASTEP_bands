@@ -1,11 +1,10 @@
-task : pdos
 set_efermi_zero : false
 efermi : file
+dos_spacing : 0.05
 
-compute_band_gap : true
+# task : dos 
+# compute_band_gap : true
 
+task : pdos
 pdos : species_ang
 #pdos : Ti1(d):O1(s):O2(s):O3(s)
-#dos_spacing : 0.05
-
-devel_flag : pdos_write_grace
