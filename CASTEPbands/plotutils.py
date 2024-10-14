@@ -167,6 +167,8 @@ def add_vb_cb(spec: Spectral.Spectral, ax: mpl.axes._axes.Axes,
         labels = list(labels)
         if len(labels) != 2:
             raise IndexError('Labels must specified for both VBM and CBM')
+    else:
+        labels = [None, None]
 
     # Get the number of electrons in each spin channel
     if spec.nspins == 1:

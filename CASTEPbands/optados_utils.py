@@ -685,7 +685,7 @@ def plot_bs_with_dos(castep_seed: str,
                      optados_shifted: bool = True,
                      fontsize: float = 20.0,
                      use_fermi: str = 'optados',
-                     optados_outfile: bool = None,
+                     optados_outfile: str = None,
                      do_proj: bool = None,
                      tick_direction: str = 'in',
                      ):
@@ -724,7 +724,7 @@ def plot_bs_with_dos(castep_seed: str,
     use_fermi : str
         Fermi energy to use for plot ('castep' or 'optados')
         Default : 'optados'
-    optados_outfile : bool
+    optados_outfile : str
         OptaDOS output file (.odo)
     do_proj : bool
         projectors to use for plot (specified by index starting from 0 for 1st projector).

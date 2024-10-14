@@ -1,0 +1,9 @@
+set_efermi_zero : false
+efermi : file
+dos_spacing : 0.05
+
+# task : dos 
+# compute_band_gap : true
+
+task : pdos
+pdos : species_ang

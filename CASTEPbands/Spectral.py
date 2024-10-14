@@ -998,6 +998,7 @@ class Spectral:
                      color: 'str | list' = None,
                      headwidth: 'float | list' = None,
                      linewidth: 'float | list' = None,
+                     pointsize: float = 20,
                      label_vbm: 'str | list' = None,
                      label_cbm: 'str | list' = None,
                      label_gap: 'str | list' = None,
@@ -1021,6 +1022,8 @@ class Spectral:
             width of arrow head to use when marking the gap, if just float, same width used for both channels.
         linewidth : 'float | list'
             width of arrow used to mark the gap, if just float, same width used for both channels.
+        pointsize : float
+            size of point used to mark the gap.
         label_vbm : 'str | list'
             labels to use when marking the VBM. If a single label is passed, only the first spin channel will be labelled.
         label_cbm : 'str | list'
@@ -1124,9 +1127,11 @@ class Spectral:
             cbm_k = self.kpoints[cbm_i[ns]]
             vbm_act = ax.scatter(vbm_k, vbm_eig[ns], color=color[ns], label=label_vbm[ns],
                                  zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                 alpha=alpha, s=pointsize
                                  )
             cbm_act = ax.scatter(cbm_k, cbm_eig[ns], color=color[ns], label=label_cbm[ns],
                                  zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
+                                 alpha=alpha, s=pointsize
                                  )
             if do_arrow is True:
                 gap_arrow = ax.arrow(vbm_k, vbm_eig[ns],
@@ -1136,7 +1141,8 @@ class Spectral:
                                      color=color[ns],
                                      length_includes_head=True,
                                      zorder=50000,   # HACK Set this really high and hope this lies on top of everything.
-                                     label=label_gap[ns]
+                                     label=label_gap[ns],
+                                     alpha=alpha
                                      )
             return vbm_act, cbm_act, gap_arrow
 

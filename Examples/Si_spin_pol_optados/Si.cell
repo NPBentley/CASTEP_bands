@@ -1,0 +1,24 @@
+%block lattice_cart
+0.000000     2.715510       2.715510
+2.715510     0.000000       2.715510
+2.715510     2.715510       0.000000
+%endblock lattice_cart
+
+%block positions_frac
+Si  0    0     0
+Si  0.25 0.25  0.25
+%endblock positions_frac
+
+kpoints_mp_grid 4 4 4
+symmetry_generate
+
+# Use the following for density of states
+spectral_kpoint_mp_grid 10 10 10
+
+# Use the following for band structure
+# %block spectral_kpoint_path
+# G
+# X
+# W
+# K
+# %endblock spectral_kpoint_path
