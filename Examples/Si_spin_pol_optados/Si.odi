@@ -7,4 +7,3 @@ dos_spacing : 0.05
 
 task : pdos
 pdos : species_ang
-#pdos : Ti1(d):O1(s):O2(s):O3(s)
