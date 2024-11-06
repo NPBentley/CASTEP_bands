@@ -57,7 +57,7 @@ class Spectral:
     high_sym_spacegroup : boolean
          Get the high-symmetry points from the space group rather than just the
          geometry/lattice parameters of the computational cell (Default : True)
-    override_bv : boolean
+    override_bv : string
          Set a Bravais lattice manually and use this Bravais lattice for the high-symmetry point labels.
          This may be useful when the cell contains e.g. a defect and one wishes to
          nonetheless keep the high-symmetry points of the original crystal for the plot.
@@ -304,7 +304,8 @@ class Spectral:
                 spin_components[nb, :, 1] = spin_components[nb, :, 1][sort_array]
                 spin_components[nb, :, 2] = spin_components[nb, :, 2][sort_array]
 
-        self.kpoints = kpoint_array
+        # V Ravindran - there's no good not to use Python or C indexing here - it also greatly reduces code bloat
+        self.kpoints = kpoint_array - 1  # V Ravindran added '-1' 06/11/24 SYM_LINES_REFACTOR
         self.kpoint_list = kpoint_list
         self.kpt_weights = kpt_weights[sort_array]
         self.BandStructure = band_structure
@@ -313,7 +314,35 @@ class Spectral:
         if vec_spin:
             self.spin_components = spin_components
 
-        # do the high symmetry points
+        # Obtain the unit cell for this calculation
+        # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
+        # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
+        # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
+        # CASTEP_COMMAND environmental variable is set which will slow down the read.                  V Ravindran CELL_READ 01/05/2024
+        if use_cell is not None:
+            # Ability to set use a different cellfile USE_CELL V Ravindran 12/07/2024
+            cell = io.read(use_cell.strip(),
+                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                           calculator_args={"keyword_tolerance": 3}
+                           )
+        else:
+            cell = io.read(seed + ".cell",
+                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
+                           calculator_args={"keyword_tolerance": 3}
+                           )
+
+        # Get the atoms in cell.
+        atoms = np.unique(cell.get_chemical_symbols())[::-1]
+        mass = []
+        for i in atoms:
+            mass.append(atomic_numbers[i])
+        atom_sort = np.argsort(mass)
+        mass = np.array(mass)[atom_sort]
+        atoms = np.array(atoms)[atom_sort]
+        self.atoms = atoms
+        self.mass = mass
+
+        # Do the high symmetry points
         k_ticks = []
         for i, vec in enumerate(kpoint_list):
             if _check_sym(vec):
@@ -338,26 +367,8 @@ class Spectral:
                 # print(diff)
                 high_sym.append(i)
         high_sym.append(len(kpoint_list) - 1)
-        high_sym = np.array(high_sym) + 1
+        high_sym = np.array(high_sym)  # + 1 V Ravindran 06/11/2024 SYM_LINES_REFACTOR
         self.high_sym = high_sym
-
-        # Obtain the unit cell for this calculation
-        # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
-        # There is a way to correct this however using an ASE keyword.                                 V Ravindran CELL_READ 01/05/2024
-        # Moreover, this ensures that the JSON file for CASTEP will not be set up if the               V Ravindran CELL_READ 01/05/2024
-        # CASTEP_COMMAND environmental variable is set which will slow down the read.                  V Ravindran CELL_READ 01/05/2024
-        if use_cell is not None:
-            # Ability to set use a different cellfile USE_CELL V Ravindran 12/07/2024
-            cell = io.read(use_cell.strip(),
-                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
-                           calculator_args={"keyword_tolerance": 3}
-                           )
-        else:
-            cell = io.read(seed + ".cell",
-                           # Do not check CASTEP keywords, the calculation is presumably correct! V CELL_READ Ravindran 01/05/2024
-                           calculator_args={"keyword_tolerance": 3}
-                           )
-
         # Set up the special points
         if override_bv is not None:
             # Allow user to manually specify the Bravais lattice.   V Ravindran OVERRIDE_BV 28/08/2024
@@ -373,24 +384,9 @@ class Spectral:
 
         special_points = bv_latt.get_special_points()
 
-        # Get the atoms in cell.
-        atoms = np.unique(cell.get_chemical_symbols())[::-1]
-        mass = []
-        for i in atoms:
-            mass.append(atomic_numbers[i])
-        atom_sort = np.argsort(mass)
-        mass = np.array(mass)[atom_sort]
-        atoms = np.array(atoms)[atom_sort]
-        self.atoms = atoms
-        self.mass = mass
-
-        # except:
-        # sys.stdout = sys.__stdout__
-        #    warnings.warn("No .cell file found for generating high symmetry labels")
-
         ticks = [""] * len(high_sym)
         found = False
-        for k_count, k in enumerate(kpoint_list[high_sym - 1]):
+        for k_count, k in enumerate(kpoint_list[high_sym]):
             found = False
 
             for i in special_points:
@@ -404,8 +400,6 @@ class Spectral:
 
         self.high_sym_labels = ticks
         self.dk = np.sum((np.sum(kpoint_list, axis=0) / no_kpoints)**2)
-        # We have all the info now we can break it up
-        # warnings.filterwarnings('always')
 
     def shift_bands(self, eng_shift, use_eng_unit=None):
         """Shift all eigenvalues DOWNWARDS by a constant.
@@ -1462,7 +1456,7 @@ class Spectral:
             eng_label = r'E-E$_{\mathrm{CBM}}$'
         ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize=fontsize)
 
-        ax.set_xlim(1, len(self.kpoints))
+        ax.set_xlim(0, len(self.kpoints)-1)  # V Ravindran 06/11/24 SYM_LINES_REFACTOR
         ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
         ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
                        right=True, top=False, bottom=False, left=True, width=1.2)
