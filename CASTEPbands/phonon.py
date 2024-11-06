@@ -6,8 +6,11 @@ Default energy/frequency units are cm^-1 unless specified otherwise.
 # TODO Ability to select units?
 # Created by: V. Ravindran, 05/11/2024
 
+import ase
 import matplotlib as mpl
 import numpy as np
+
+from ase import spacegroup as spg
 
 
 def _read_phonon_freqs(phononfile: str):
@@ -198,7 +201,9 @@ def _read_phonon_freqs(phononfile: str):
 class Phonon:
     # TODO Documentation
 
-    def __init__(self, seedname: str,
+    def __init__(self,
+                 seedname: str,
+                 verbose: bool = False
                  ):
         # TODO Documentation
 
@@ -213,12 +218,34 @@ class Phonon:
 
         # Read phonon file
         self.qpoints, self.qpoint_weights, self.freqs, cell_vecs, species_list, frac_coords = _read_phonon_freqs(phononfile)
-
         self.nbranch = self.freqs.shape[0]
         self.nqpoint = self.freqs.shape[1]
 
+        if verbose:
+            print('Number of wavevectors ', self.nqpoint)
+            print('Number of branches    ', self.nbranch)
+            print('Unit Cell Vectors (A)')
+            for i in range(3):
+                print('{:12.6f} {:12.6f} {:12.6f}'.format(*cell_vecs[i]))
+            print('Number of ions        ', len(species_list))
+            print('Number of species     ', len(set(species_list)))
+
         # DEBUG - Check same as written by CASTEP
-        for iq in range(self.nqpoint):
-            print('q-pt= {:5n} {:10.6f} {:10.6f} {:10.6f} {:14.10f}'.format(iq+1, *self.qpoints[iq, :], self.qpoint_weights[iq]))
-            for ibranch in range(self.nbranch):
-                print(f'{ibranch+1:8n} {self.freqs[ibranch, iq]:15.6f}')
+        # for iq in range(self.nqpoint):
+        #     print('q-pt= {:5n} {:10.6f} {:10.6f} {:10.6f} {:14.10f}'.format(iq+1, *self.qpoints[iq, :], self.qpoint_weights[iq]))
+        #     for ibranch in range(self.nbranch):
+        #         print(f'{ibranch+1:8n} {self.freqs[ibranch, iq]:15.6f}')
+
+        # Create the unit cell for this calculation
+        self.cell = ase.Atoms(symbols=species_list, scaled_positions=frac_coords, cell=cell_vecs, pbc=True)
+
+        if verbose:
+            vol = self.cell.get_volume()
+            total_mass = np.sum(self.cell.get_masses())
+            density = total_mass/vol
+            print(f'Density =  {density:14.7f}  amu/A^3= ',
+                  f'{density*1.6605391:15.7f} g/cm^3')
+
+            # Get spacegroup of cell
+            spg_cell = spg.get_spacegroup(self.cell)
+            print(f'Space group: {spg_cell.no}', "".join(spg_cell.symbol.split()))
