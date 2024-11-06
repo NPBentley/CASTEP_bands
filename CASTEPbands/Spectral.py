@@ -101,24 +101,6 @@ class Spectral:
         self.start_time = time.time()
         self.pdos_has_read = False
 
-        # Functions
-        def _check_sym(vec):
-            fracs = np.array([0.5, 0.0, 0.25, 0.75, 0.33333333, 0.66666667])
-            frac = []
-            for i in vec:
-                # frac.append(i.as_integer_ratio()[0])
-                # frac.append(i.as_integer_ratio()[1])
-                buff = []
-                for j in fracs:
-                    buff.append(np.isclose(i, j))
-                frac.append(any(buff))
-
-            if all(frac):
-                # print(vec)
-                return True
-            else:
-                return False
-
         if convert_to_eV:
             eV = 27.2114
             self.eV = eV
@@ -343,62 +325,13 @@ class Spectral:
         self.mass = mass
 
         # Do the high symmetry points
-        k_ticks = []
-        for i, vec in enumerate(kpoint_list):
-            if _check_sym(vec):
-                k_ticks.append(kpoint_array[i])
-
-        tol = 1e-5
-
-        kpoint_grad = []
-        for i in range(1, len(kpoint_list)):
-            diff = kpoint_list[i] - kpoint_list[i - 1]
-            kpoint_grad.append(diff)
-
-        kpoint_2grad = []
-        high_sym = [0]
-        for i in range(1, len(kpoint_grad)):
-            diff = kpoint_grad[i] - kpoint_grad[i - 1]
-            kpoint_2grad.append(diff)
-            # print(diff)
-
-            if any(np.abs(diff) > tol):
-
-                # print(diff)
-                high_sym.append(i)
-        high_sym.append(len(kpoint_list) - 1)
-        high_sym = np.array(high_sym)  # + 1 V Ravindran 06/11/2024 SYM_LINES_REFACTOR
-        self.high_sym = high_sym
-        # Set up the special points
-        if override_bv is not None:
-            # Allow user to manually specify the Bravais lattice.   V Ravindran OVERRIDE_BV 28/08/2024
-            # Useful for defect calculations if one wants to        V Ravindran OVERRIDE_BV 28/08/2024
-            # e.g. use high-symmetry labels of the main crystal.    V Ravindran OVERRIDE_BV 28/08/2024
-            bv_latt = spgutils._get_bravais_lattice_usr(cell, override_bv)
-        elif high_sym_spacegroup is True:
-            # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
-            bv_latt = spgutils._get_bravais_lattice_spg(cell)
-        else:
-            # Get Bravais lattice from the crystal system of the computational cell.
-            bv_latt = cell.cell.get_bravais_lattice()
-
-        special_points = bv_latt.get_special_points()
-
-        ticks = [""] * len(high_sym)
-        found = False
-        for k_count, k in enumerate(kpoint_list[high_sym]):
-            found = False
-
-            for i in special_points:
-
-                if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
-                    if i == "G":
-                        ticks[k_count] = r"$\Gamma$"
-                    else:
-                        ticks[k_count] = i
-                    found = True
-
-        self.high_sym_labels = ticks
+        # The following call to _get_high_sym_lines relies on the the kpoints being sorted! V Ravindran 06/11/2024 SYM_LINES_REFACTOR
+        # In other words, the kpoint index should run in order and not whatever kpoint process V Ravindran 06/11/2024 SYM_LINES_REFACTOR
+        # finished first and wrote to .bands.   V Ravindran 06/11/2024 SYM_LINES_REFACTOR
+        self.high_sym, self.high_sym_labels = spgutils._get_high_sym_lines(kpoint_list, cell,
+                                                                           high_sym_spacegroup=high_sym_spacegroup,
+                                                                           override_bv=override_bv
+                                                                           )
         self.dk = np.sum((np.sum(kpoint_list, axis=0) / no_kpoints)**2)
 
     def shift_bands(self, eng_shift, use_eng_unit=None):
