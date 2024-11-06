@@ -238,15 +238,20 @@ def _get_high_sym_lines(kpt_array: np.ndarray, cell: ase.Atoms,
     # for i in range(1, len(kpt_array)):
     #     diff = kpt_array[i] - kpt_array[i-1]
     #     kpt_grad.append(diff)
-    # V Ravindran - we can use vectorised numpy functions instead
+    # V Ravindran 06/11/2024 - we can use vectorised numpy functions instead
     kpt_grad = np.diff(kpt_array, axis=0)
 
     # Get the second derivative
     high_sym = [0]  # HACK: Assume we are starting at high-symmetry point
-    for i in range(1, len(kpt_grad)):
-        kpt_2grad = kpt_grad[i] - kpt_grad[i-1]
-        if any(np.abs(kpt_2grad) > tol):
-            high_sym.append(i)
+    # for i in range(1, len(kpt_grad)):
+    #     kpt_2grad = kpt_grad[i] - kpt_grad[i-1]
+    #     if any(np.abs(kpt_2grad) > tol):
+    #         high_sym.append(i)
+    # V Ravindran 06/11/2024 - we can use vectorised numpy functions instead
+    kpt_2grad = np.diff(kpt_grad, axis=0)
+    for i, diff in enumerate(kpt_2grad):
+        if any(np.abs(diff) > tol):
+            high_sym.append(i+1)  # +1 since we want index of kpt_grad which is 1 behind due to difference
 
     # HACK : Assume we finish on a high-symmetry point
     high_sym.append(len(kpt_array) - 1)
