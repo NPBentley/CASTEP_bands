@@ -282,7 +282,10 @@ def _get_high_sym_lines(kpt_array: np.ndarray, cell: ase.Atoms,
         found = False
 
         for i in special_points:
-            if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
+            # if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
+            # V Ravindran 06/11/2024 vectorisation and make sure to include mod as we are in fractional coordinates that can wrap around!
+            special_pt_coord = special_points[i]
+            if (np.mod(special_pt_coord - k, 1) < tol).all():  # V Ravindran: absolute value should be unnecessary as mod is always postive!
                 if i == "G":
                     tick_labels[k_count] = r"$\Gamma$"
                 else:
