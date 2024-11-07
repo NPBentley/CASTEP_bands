@@ -233,12 +233,9 @@ class Spectral:
 
         # Decide if we now want to keep the CASTEP Fermi energy or use the VBM - V Ravindran 30/04/2024
         if use_vbm_fermi is True:
-            fermi_energy = np.amax(vb_eigs) / eV
-            # Eigenvalues are already in the appropriate unit but Fermi energy was not converted initially
-            # Path of least resistance is to convert to Hartrees and then convert to eV again rather than changing the
-            # rest of the code.
-            # TODO If I can be bothered, I might actually refactor this initialisation bit it in the future...
-            self.Ef = fermi_energy * eV
+            # Eigenvalues are already in the appropriate unit in the class (and assumed to be from here on out)
+            # as is the Fermi energy (within the class, not fermi_energy variable)
+            self.Ef = np.amax(vb_eigs)  # vb_eigs are already in eV (or appropriate unit chosen)
 
         # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
         # NB: For zero_cbm and zero_vbm, we take the VBM/CBM from the first spin channel if spin polarised (arbitrarily).
@@ -256,7 +253,8 @@ class Spectral:
         elif zero_fermi is True:
             # Since this is a default, to minimise number of kwargs user has to use in class,
             # this needs to be far down as possible
-            eng_shift = fermi_energy * eV
+            # V Ravindran 06/11/2024 - the Fermi energy stored in the class should be in the correct units so use that instead!
+            eng_shift = self.Ef
         else:
             eng_shift = 0.0
 
