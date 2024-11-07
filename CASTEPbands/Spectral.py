@@ -1398,58 +1398,13 @@ class Spectral:
         ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(2))
         ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(2))
 
-        def _get_klim(self, user_klim):
-            """Helper function to parse the user's kpoint limits
-            Author : V Ravindran 01/04/2024
-            """
-            if len(user_klim) != 2:
-                raise IndexError('You must pass both the lower and upper kpoint limit')
-
-            plot_klim = np.empty(2, dtype=int)
-
-            if isinstance(user_klim[0], str) is True:
-                # Using high-symmetry points to decide label
-                for n, label in enumerate(user_klim):
-                    if label.strip() == 'G':
-                        label = r'$\Gamma$'
-                    indx = [i for i, pt in enumerate(self.high_sym_labels) if label == pt]
-
-                    if len(indx) > 1:
-                        # If a high symmetry point appears more than once, let the user choose interactively.
-                        print('{} point appears more than once in band structure.'.format(label))
-                        print('Path in calculation: ', end='')
-                        for i, pt in enumerate(self.high_sym_labels):
-                            if pt == r'$\Gamma$':
-                                pt = 'G'
-                            if i == len(self.high_sym_labels) - 1:
-                                print(pt)
-                            else:
-                                print(pt, end='->')
-
-                        print('Choose index from the following: ', end=' ')
-                        for i, label_i in enumerate((indx)):
-                            print('{}: {}.kpt'.format(i, label_i + 1), end='   ')
-                        indx = input('')
-                        indx = int(indx)
-                    elif len(indx) == 0:
-                        raise IndexError('{} not in high symmetry points'.format(label))
-                    else:
-                        indx = indx[0]
-
-                    # Now get the actual kpoint index associated with the desired high-symmetry point.
-                    plot_klim[n] = self.high_sym[indx]
-            else:
-                # Set index by kpoint number - NB: C/Python ordering!
-                plot_klim = np.array(user_klim, dtype=int)
-            return plot_klim
-
         # energy lims
         if Elim is not None:
             ax.set_ylim(Elim[0], Elim[1])
 
         # kpoint/Brillouin zone limits V Ravindran - 01/02/2024
         if klim is not None:
-            plot_klim = _get_klim(self, klim)
+            plot_klim = spgutils.get_klim(self.high_sym, self.high_sym_labels, klim)
             ax.set_xlim(plot_klim[0], plot_klim[1])
 
         # Add in all the lines
@@ -1465,7 +1420,7 @@ class Spectral:
             return
 
         def _setup_str_mask(user_strings, band_ids_mask):
-            """Setup a character array according to the bands mask.
+            """Set up a character array according to the bands mask.
 
             The same convention is followed as above with regard to spin channels.
             Author : V Ravindran, 12/04/2024

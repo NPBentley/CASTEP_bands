@@ -277,9 +277,7 @@ def _get_high_sym_lines(kpt_array: np.ndarray, cell: ase.Atoms,
 
     # Now initialise the tick labels
     tick_labels = [""] * len(high_sym)
-    found = False
     for k_count, k in enumerate(kpt_array[high_sym]):
-        found = False
 
         for i in special_points:
             # if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
@@ -290,9 +288,73 @@ def _get_high_sym_lines(kpt_array: np.ndarray, cell: ase.Atoms,
                     tick_labels[k_count] = r"$\Gamma$"
                 else:
                     tick_labels[k_count] = i
-                found = True
 
     if ret_special_pts:
         return high_sym, tick_labels, special_points
     else:
         return high_sym, tick_labels
+
+
+def get_klim(high_sym: np.ndarray, high_sym_labels: list, user_klim: 'list(dtype=str|int)'):
+    """Helper function to parse the user's kpoint limits.
+
+    This is mainly if the user decides to pass in limits by high-symmetry point labels rather than the
+    as explicit k-point indices.
+
+    Author : V Ravindran 01/04/2024
+    Moved here for phonon code V Ravindran 06/11/2024
+
+    Arguments
+    ---------
+    high_sym : ndarray(dtype=int)
+        k-point indices of high symmetry points in band structure
+    high_sym_labels : list
+        labels of high-symmetry points in band structure
+    user_klim : list (dtype=str|int)
+        limits of k-point axis either specified by labels of high-symmetry points or explicit k-point labels.
+
+    Returns
+    -------
+    plot_klim : ndarray(dtype=int)
+        k-point indices for axis limits
+    """
+    if len(user_klim) != 2:
+        raise IndexError('You must pass both the lower and upper kpoint limit')
+
+    plot_klim = np.empty(2, dtype=int)
+
+    if isinstance(user_klim[0], str) is True:
+        # Using high-symmetry points to decide label
+        for n, label in enumerate(user_klim):
+            if label.strip() == 'G':
+                label = r'$\Gamma$'
+            indx = [i for i, pt in enumerate(high_sym_labels) if label == pt]
+
+            if len(indx) > 1:
+                # If a high symmetry point appears more than once, let the user choose interactively.
+                print('{} point appears more than once in band structure.'.format(label))
+                print('Path in calculation: ', end='')
+                for i, pt in enumerate(high_sym_labels):
+                    if pt == r'$\Gamma$':
+                        pt = 'G'
+                    if i == len(high_sym_labels) - 1:
+                        print(pt)
+                    else:
+                        print(pt, end='->')
+
+                print('Choose index from the following: ', end=' ')
+                for i, label_i in enumerate((indx)):
+                    print('{}: {}.kpt'.format(i, label_i + 1), end='   ')
+                indx = input('')
+                indx = int(indx)
+            elif len(indx) == 0:
+                raise IndexError('{} not in high symmetry points'.format(label))
+            else:
+                indx = indx[0]
+
+            # Now get the actual kpoint index associated with the desired high-symmetry point.
+            plot_klim[n] = high_sym[indx]
+    else:
+        # Set index by kpoint number - NB: C/Python ordering!
+        plot_klim = np.array(user_klim, dtype=int)
+    return plot_klim
