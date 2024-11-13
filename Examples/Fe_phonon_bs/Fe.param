@@ -1,0 +1,9 @@
+task : phonon
+phonon_fine_method : interpolate
+
+spin_polarised : true
+xc_functional  : PBE
+cut_off_energy : 1700 eV
+
+continuation : default
+

@@ -1,0 +1,29 @@
+symmetry_generate
+kpoints_mp_grid 7 7 7
+
+%block lattice_abc
+2.831410 2.831410 2.831410
+90.0 90.0 90.0
+%endblock lattice_abc
+
+%block positions_frac
+Fe 0.0 0.0 0.0 spin=2.16
+Fe 0.5 0.5 0.5 spin=2.16
+%endblock positions_frac
+quantisation_axis 1 1 1
+
+%block species_pot
+Fe Fe_NCP19_PBE_OTF.usp
+%endblock species_pot
+
+phonon_kpoint_mp_grid 7 7 7
+phonon_kpoint_mp_offset : include_gamma
+
+%block phonon_fine_kpoint_path
+0.00000 0.0000 0.0000 ! G
+0.50000 0.5000 0.5000 ! H
+0.00000 0.0000 0.5000 ! N
+0.25000 0.2500 0.2500 ! P
+0.00000 0.0000 0.0000 ! G
+0.00000 0.0000 0.5000 ! N
+%endblock phonon_fine_kpoint_path

@@ -57,7 +57,7 @@ class Spectral:
     high_sym_spacegroup : boolean
          Get the high-symmetry points from the space group rather than just the
          geometry/lattice parameters of the computational cell (Default : True)
-    override_bv : boolean
+    override_bv : string
          Set a Bravais lattice manually and use this Bravais lattice for the high-symmetry point labels.
          This may be useful when the cell contains e.g. a defect and one wishes to
          nonetheless keep the high-symmetry points of the original crystal for the plot.
@@ -100,24 +100,6 @@ class Spectral:
         ''' Initalise the class, it will require the CASTEP seed to read the file '''
         self.start_time = time.time()
         self.pdos_has_read = False
-
-        # Functions
-        def _check_sym(vec):
-            fracs = np.array([0.5, 0.0, 0.25, 0.75, 0.33333333, 0.66666667])
-            frac = []
-            for i in vec:
-                # frac.append(i.as_integer_ratio()[0])
-                # frac.append(i.as_integer_ratio()[1])
-                buff = []
-                for j in fracs:
-                    buff.append(np.isclose(i, j))
-                frac.append(any(buff))
-
-            if all(frac):
-                # print(vec)
-                return True
-            else:
-                return False
 
         if convert_to_eV:
             eV = 27.2114
@@ -251,12 +233,9 @@ class Spectral:
 
         # Decide if we now want to keep the CASTEP Fermi energy or use the VBM - V Ravindran 30/04/2024
         if use_vbm_fermi is True:
-            fermi_energy = np.amax(vb_eigs) / eV
-            # Eigenvalues are already in the appropriate unit but Fermi energy was not converted initially
-            # Path of least resistance is to convert to Hartrees and then convert to eV again rather than changing the
-            # rest of the code.
-            # TODO If I can be bothered, I might actually refactor this initialisation bit it in the future...
-            self.Ef = fermi_energy * eV
+            # Eigenvalues are already in the appropriate unit in the class (and assumed to be from here on out)
+            # as is the Fermi energy (within the class, not fermi_energy variable)
+            self.Ef = np.amax(vb_eigs)  # vb_eigs are already in eV (or appropriate unit chosen)
 
         # Decide on how we want to shift the bands based on user's preference - V Ravindran 31/01/2024
         # NB: For zero_cbm and zero_vbm, we take the VBM/CBM from the first spin channel if spin polarised (arbitrarily).
@@ -274,7 +253,8 @@ class Spectral:
         elif zero_fermi is True:
             # Since this is a default, to minimise number of kwargs user has to use in class,
             # this needs to be far down as possible
-            eng_shift = fermi_energy * eV
+            # V Ravindran 06/11/2024 - the Fermi energy stored in the class should be in the correct units so use that instead!
+            eng_shift = self.Ef
         else:
             eng_shift = 0.0
 
@@ -304,7 +284,8 @@ class Spectral:
                 spin_components[nb, :, 1] = spin_components[nb, :, 1][sort_array]
                 spin_components[nb, :, 2] = spin_components[nb, :, 2][sort_array]
 
-        self.kpoints = kpoint_array
+        # V Ravindran - there's no good not to use Python or C indexing here - it also greatly reduces code bloat
+        self.kpoints = kpoint_array - 1  # V Ravindran added '-1' 06/11/24 SYM_LINES_REFACTOR
         self.kpoint_list = kpoint_list
         self.kpt_weights = kpt_weights[sort_array]
         self.BandStructure = band_structure
@@ -312,34 +293,6 @@ class Spectral:
         self.nspins = no_spins
         if vec_spin:
             self.spin_components = spin_components
-
-        # do the high symmetry points
-        k_ticks = []
-        for i, vec in enumerate(kpoint_list):
-            if _check_sym(vec):
-                k_ticks.append(kpoint_array[i])
-
-        tol = 1e-5
-
-        kpoint_grad = []
-        for i in range(1, len(kpoint_list)):
-            diff = kpoint_list[i] - kpoint_list[i - 1]
-            kpoint_grad.append(diff)
-
-        kpoint_2grad = []
-        high_sym = [0]
-        for i in range(1, len(kpoint_grad)):
-            diff = kpoint_grad[i] - kpoint_grad[i - 1]
-            kpoint_2grad.append(diff)
-            # print(diff)
-
-            if any(np.abs(diff) > tol):
-
-                # print(diff)
-                high_sym.append(i)
-        high_sym.append(len(kpoint_list) - 1)
-        high_sym = np.array(high_sym) + 1
-        self.high_sym = high_sym
 
         # Obtain the unit cell for this calculation
         # This used to write to os.devnull because ASE would whinge about a missing CASTEP executable. V Ravindran CELL_READ 01/05/2024
@@ -358,21 +311,6 @@ class Spectral:
                            calculator_args={"keyword_tolerance": 3}
                            )
 
-        # Set up the special points
-        if override_bv is not None:
-            # Allow user to manually specify the Bravais lattice.   V Ravindran OVERRIDE_BV 28/08/2024
-            # Useful for defect calculations if one wants to        V Ravindran OVERRIDE_BV 28/08/2024
-            # e.g. use high-symmetry labels of the main crystal.    V Ravindran OVERRIDE_BV 28/08/2024
-            bv_latt = spgutils._get_bravais_lattice_usr(cell, override_bv)
-        elif high_sym_spacegroup is True:
-            # Default for special points is now to get them from the space group. V Ravindran 08/05/2024
-            bv_latt = spgutils._get_bravais_lattice_spg(cell)
-        else:
-            # Get Bravais lattice from the crystal system of the computational cell.
-            bv_latt = cell.cell.get_bravais_lattice()
-
-        special_points = bv_latt.get_special_points()
-
         # Get the atoms in cell.
         atoms = np.unique(cell.get_chemical_symbols())[::-1]
         mass = []
@@ -384,28 +322,15 @@ class Spectral:
         self.atoms = atoms
         self.mass = mass
 
-        # except:
-        # sys.stdout = sys.__stdout__
-        #    warnings.warn("No .cell file found for generating high symmetry labels")
-
-        ticks = [""] * len(high_sym)
-        found = False
-        for k_count, k in enumerate(kpoint_list[high_sym - 1]):
-            found = False
-
-            for i in special_points:
-
-                if abs(special_points[i][0] - k[0]) < tol and abs(special_points[i][1] - k[1]) < tol and abs(special_points[i][2] - k[2]) < tol:
-                    if i == "G":
-                        ticks[k_count] = r"$\Gamma$"
-                    else:
-                        ticks[k_count] = i
-                    found = True
-
-        self.high_sym_labels = ticks
+        # Do the high symmetry points
+        # The following call to _get_high_sym_lines relies on the the kpoints being sorted! V Ravindran 06/11/2024 SYM_LINES_REFACTOR
+        # In other words, the kpoint index should run in order and not whatever kpoint process V Ravindran 06/11/2024 SYM_LINES_REFACTOR
+        # finished first and wrote to .bands.   V Ravindran 06/11/2024 SYM_LINES_REFACTOR
+        self.high_sym, self.high_sym_labels = spgutils._get_high_sym_lines(kpoint_list, cell,
+                                                                           high_sym_spacegroup=high_sym_spacegroup,
+                                                                           override_bv=override_bv
+                                                                           )
         self.dk = np.sum((np.sum(kpoint_list, axis=0) / no_kpoints)**2)
-        # We have all the info now we can break it up
-        # warnings.filterwarnings('always')
 
     def shift_bands(self, eng_shift, use_eng_unit=None):
         """Shift all eigenvalues DOWNWARDS by a constant.
@@ -1462,7 +1387,7 @@ class Spectral:
             eng_label = r'E-E$_{\mathrm{CBM}}$'
         ax.set_ylabel(eng_label + f' ({eng_unit})', fontsize=fontsize)
 
-        ax.set_xlim(1, len(self.kpoints))
+        ax.set_xlim(0, len(self.kpoints)-1)  # V Ravindran 06/11/24 SYM_LINES_REFACTOR
         ax.tick_params(axis='both', direction='in', which='major', labelsize=fontsize * 0.8, length=12, width=1.2)
         ax.tick_params(axis='both', which='minor', labelsize=fontsize * 0.8, length=6,
                        right=True, top=False, bottom=False, left=True, width=1.2)
@@ -1473,58 +1398,13 @@ class Spectral:
         ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(2))
         ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(2))
 
-        def _get_klim(self, user_klim):
-            """Helper function to parse the user's kpoint limits
-            Author : V Ravindran 01/04/2024
-            """
-            if len(user_klim) != 2:
-                raise IndexError('You must pass both the lower and upper kpoint limit')
-
-            plot_klim = np.empty(2, dtype=int)
-
-            if isinstance(user_klim[0], str) is True:
-                # Using high-symmetry points to decide label
-                for n, label in enumerate(user_klim):
-                    if label.strip() == 'G':
-                        label = r'$\Gamma$'
-                    indx = [i for i, pt in enumerate(self.high_sym_labels) if label == pt]
-
-                    if len(indx) > 1:
-                        # If a high symmetry point appears more than once, let the user choose interactively.
-                        print('{} point appears more than once in band structure.'.format(label))
-                        print('Path in calculation: ', end='')
-                        for i, pt in enumerate(self.high_sym_labels):
-                            if pt == r'$\Gamma$':
-                                pt = 'G'
-                            if i == len(self.high_sym_labels) - 1:
-                                print(pt)
-                            else:
-                                print(pt, end='->')
-
-                        print('Choose index from the following: ', end=' ')
-                        for i, label_i in enumerate((indx)):
-                            print('{}: {}.kpt'.format(i, label_i + 1), end='   ')
-                        indx = input('')
-                        indx = int(indx)
-                    elif len(indx) == 0:
-                        raise IndexError('{} not in high symmetry points'.format(label))
-                    else:
-                        indx = indx[0]
-
-                    # Now get the actual kpoint index associated with the desired high-symmetry point.
-                    plot_klim[n] = self.high_sym[indx]
-            else:
-                # Set index by kpoint number - NB: C/Python ordering!
-                plot_klim = np.array(user_klim, dtype=int)
-            return plot_klim
-
         # energy lims
         if Elim is not None:
             ax.set_ylim(Elim[0], Elim[1])
 
         # kpoint/Brillouin zone limits V Ravindran - 01/02/2024
         if klim is not None:
-            plot_klim = _get_klim(self, klim)
+            plot_klim = spgutils.get_klim(self.high_sym, self.high_sym_labels, klim)
             ax.set_xlim(plot_klim[0], plot_klim[1])
 
         # Add in all the lines
@@ -1540,7 +1420,7 @@ class Spectral:
             return
 
         def _setup_str_mask(user_strings, band_ids_mask):
-            """Setup a character array according to the bands mask.
+            """Set up a character array according to the bands mask.
 
             The same convention is followed as above with regard to spin channels.
             Author : V Ravindran, 12/04/2024
