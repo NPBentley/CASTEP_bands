@@ -9,8 +9,7 @@ Default energy/frequency units are cm^-1 unless specified otherwise.
 import ase
 import matplotlib as mpl
 import numpy as np
-
-from ase import spacegroup as spg
+import spglib
 
 from CASTEPbands import spgutils
 from matplotlib import ticker
@@ -306,8 +305,14 @@ class Phonon:
                   f'{density*1.6605391:15.7f} g/cm^3')
 
             # Get spacegroup of cell
-            spg_cell = spg.get_spacegroup(self.cell)
-            print(f'Space group: {spg_cell.no}', "".join(spg_cell.symbol.split()))
+            # ase.spacegroup.get_spacegroup is depreciated so now use spglib directly V Ravindran USE_SPGLIB 23/01/2025
+            # spglib expects cell as a tuple with in the order of                     V Ravindran USE_SPGLIB 23/01/2025
+            # lattice vectors, fractional coords and species (by atomic number)       V Ravindran USE_SPGLIB 23/01/2025
+            spg_cell = (self.cell.cell[:], self.cell.get_scaled_positions(), self.cell.get_atomic_numbers())
+            spg_symb, spgno_str = spglib.get_spacegroup(spg_cell).split()
+            # Remove the brackets returned around number in the above                 V Ravindran USE_SPGLIB 23/01/2025
+            spg_no = int(spgno_str[spgno_str.find('(') + 1: spgno_str.find(')')])
+            print(f'Space group: {spg_no} {spg_symb}')
 
         # Finally, create the high-symmetry lines
         self.high_sym, self.high_sym_labels = spgutils._get_high_sym_lines(self.qpoints, self.cell,
