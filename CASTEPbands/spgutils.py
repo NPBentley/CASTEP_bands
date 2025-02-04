@@ -7,8 +7,8 @@ the Brillouin zone based on the symmetry of the Bravais lattice.
 # Created by: V Ravindran, 28/08/2024
 import ase
 import ase.lattice as latt
-import ase.spacegroup as spg
 import numpy as np
+import spglib
 
 
 def _get_bravais_lattice_spg(cell: ase.Atoms):
@@ -30,14 +30,22 @@ def _get_bravais_lattice_spg(cell: ase.Atoms):
     * Wraps to _get_bravais_lattice_usr to actually get the Bravais lattice
       saving on some duplication of code.
 
+    Updated 23/01/2025
+    * No longer use ase.spacegroup.get_spacegroup method since this is depreciated by ASE.
+    * Instead, now call spglib directly.
     """
+    # spglib expects cell as a tuple with in the order of               V Ravindran USE_SPGLIB 23/01/2025
+    # lattice vectors, fractional coords and species (by atomic number) V Ravindran USE_SPGLIB 23/01/2025
+    spg_cell = (cell.cell[:], cell.get_scaled_positions(), cell.get_atomic_numbers())
+
     # Get the space group information for this cell
-    spg_cell = spg.get_spacegroup(cell)
-    spg_no = spg_cell.no
+    spg_symb, spgno_str = spglib.get_spacegroup(spg_cell).split()
+    # Remove the brackets returned around number in the above           V Ravindran USE_SPGLIB 23/01/2025
+    spg_no = int(spgno_str[spgno_str.find('(') + 1: spgno_str.find(')')])
 
     # Get the first letter of the spacegroup in international notation.
     # This gives the information about the Bravais lattice
-    bv_symb = spg_cell.symbol.split()[0].upper()
+    bv_symb = spg_symb[0]
 
     # Now use the space group to determine the crystal system.
     # We can determine the actual Bravais lattice using the first
@@ -57,7 +65,7 @@ def _get_bravais_lattice_spg(cell: ase.Atoms):
         elif bv_symb == 'C':  # Base-centred (C-centred) monoclinic
             bv_type = 'MCLC'
         else:
-            raise IndexError(f'Unknown monoclinic lattice with space group: {spg_cell.symbol}')
+            raise IndexError(f'Unknown monoclinic lattice with space group: {spg_symb}')
     elif 16 <= spg_no <= 74:
         # Orthorhombic
         if bv_symb == 'P':  # Primitive Orthorhombic
@@ -69,7 +77,7 @@ def _get_bravais_lattice_spg(cell: ase.Atoms):
         elif bv_symb == 'A' or bv_symb == 'C':  # A/C-centred Orthorhombic
             bv_type = 'ORCC'
         else:
-            raise IndexError(f'Unknown orthorhombic lattice with space group: {spg_cell.symbol}')
+            raise IndexError(f'Unknown orthorhombic lattice with space group: {spg_symb}')
     elif 75 <= spg_no <= 142:
         # Tetragonal
         if bv_symb == 'P':  # Primitive Tetragonal
@@ -77,7 +85,7 @@ def _get_bravais_lattice_spg(cell: ase.Atoms):
         elif bv_symb == 'I':  # Body-Centred Tetragonal
             bv_type = 'BCT'
         else:
-            raise IndexError(f'Unknown tetragonal lattice with space group: {spg_cell.symbol}')
+            raise IndexError(f'Unknown tetragonal lattice with space group: {spg_symb}')
     elif 143 <= spg_no <= 167:
         # Trigonal
         if bv_symb == 'R':  # R-trigonal/Rhombohedral
@@ -85,7 +93,7 @@ def _get_bravais_lattice_spg(cell: ase.Atoms):
         elif bv_symb == 'P':  # Hexagonal
             bv_type = 'HEX'
         else:
-            raise IndexError(f'Unknown trigonal lattice with space group: {spg_cell.symbol}')
+            raise IndexError(f'Unknown trigonal lattice with space group: {spg_symb}')
     elif 168 <= spg_no <= 194:
         # Hexagonal
         bv_type = 'HEX'
@@ -98,9 +106,9 @@ def _get_bravais_lattice_spg(cell: ase.Atoms):
         elif bv_symb == 'F':  # Face-Centred Cubic
             bv_type = 'FCC'
         else:
-            raise IndexError(f'Unknown cubic lattice with space group: {spg_cell.symbol}')
+            raise IndexError(f'Unknown cubic lattice with space group: {spg_symb}')
     else:
-        raise IndexError(f'Unknown Spacegroup {spg_no}: {spg_cell.symbol}')
+        raise IndexError(f'Unknown Spacegroup {spg_no}: {spg_symb}')
 
     # Now get the Bravais lattice
     bv = _get_bravais_lattice_usr(cell, bv_type)
