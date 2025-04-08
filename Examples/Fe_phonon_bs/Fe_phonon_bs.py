@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 phon = Phonon('Fe.phonon', verbose=True)
 
 fig, ax = plt.subplots()
-phon.plot_dispersion(ax)
+phon.plot_dispersion(ax, freq_lim=[0, 320])
 
+plt.title('Fe (BCC): PBE DFPT', fontsize=18)
 plt.savefig('Fe_phonon_bs.png')
 # plt.show()
