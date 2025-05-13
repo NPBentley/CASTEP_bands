@@ -367,7 +367,7 @@ def align_bands(spec: Spectral.Spectral, spec_ref: Spectral.Spectral,
             warnings.warn(errmsg + ' Use silent=True to surpress warnings')
 
     if spec.BandStructure.shape != spec_ref.BandStructure.shape:
-        errmsg = f'Ref. bandstructure has (nk, nb, ns)={spec_ref.BandStructure.shape}' + \
+        errmsg = f'Ref. bandstructure has (nb, nk, ns)={spec_ref.BandStructure.shape}' + \
             f' but actual has {spec.BandStructure.shape}.'
         _warn_bs_mismatch(errmsg)
     elif spec.have_ncm != spec_ref.have_ncm:
