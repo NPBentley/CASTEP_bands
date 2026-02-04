@@ -6,7 +6,7 @@ A Python module for performing band structure manipulation and generating public
 Installation is done with the following command:
 
 ```bash
-pip install https://github.com/NPBentley/CASTEP_bands.git
+pip install git+https://github.com/NPBentley/CASTEP_bands.git
 ```
 
 ## Documentation
